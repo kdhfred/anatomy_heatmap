@@ -1,0 +1,20 @@
+name: body_parts_heatmap_example
+description: Minimal example for the body_parts_heatmap package.
+publish_to: none
+version: 0.0.1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  body_parts_heatmap:
+    path: ../
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

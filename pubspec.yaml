@@ -1,0 +1,20 @@
+name: body_parts_heatmap
+description: Flutter body-part SVG heatmaps with deterministic muscle mapping semantics.
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.35.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  path_drawing: ^1.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

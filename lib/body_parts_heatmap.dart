@@ -1,0 +1,7 @@
+// Flutter widgets and adapters for SVG body-part heatmaps.
+export 'src/body_heatmap_color_scheme.dart';
+export 'src/body_highlight_data.dart';
+export 'src/body_types.dart';
+export 'src/muscle_to_body_part_adapter.dart';
+export 'src/widgets/body_parts_heatmap.dart';
+export 'src/widgets/hand_parts_heatmap.dart';
