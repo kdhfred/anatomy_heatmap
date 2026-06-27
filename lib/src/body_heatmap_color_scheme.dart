@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'body_highlight_data.dart';
 import 'body_types.dart';
 
-/// Colors used by [BodyPartsHeatmap] to paint inactive and active body parts.
+/// Colors used by [AnatomyHeatmap] to paint inactive and active body parts.
 class BodyHeatmapColorScheme {
   /// Creates a color scheme for body heatmaps.
   const BodyHeatmapColorScheme({
@@ -18,7 +18,7 @@ class BodyHeatmapColorScheme {
     this.outlineStrokeWidth = 1.6,
   });
 
-  /// Light gray color used for inactive body parts.
+  /// Light gray color used for inactive anatomical regions.
   final Color inactiveFill;
 
   /// Base red/coral hue used for active heatmap regions.

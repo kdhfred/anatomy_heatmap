@@ -1,5 +1,6 @@
 import 'body_highlight_data.dart';
 import 'body_types.dart';
+import 'hand_types.dart';
 
 /// Deterministic adapter from exercise muscle labels to SVG body-part slugs.
 ///
@@ -8,74 +9,134 @@ import 'body_types.dart';
 /// missing taxonomy mappings deliberately rather than relying on fuzzy guesses.
 class MuscleToBodyPartAdapter {
   /// Creates an adapter with optional additional explicit aliases.
-  MuscleToBodyPartAdapter({Map<String, Set<BodyPartSlug>> aliases = const {}})
-    : _aliases = Map.unmodifiable({
-        ..._seedAliases,
-        for (final entry in aliases.entries)
-          _normalize(entry.key): Set.unmodifiable(entry.value),
-      });
+  MuscleToBodyPartAdapter({
+    Map<String, Set<BodyPartSlug>> aliases = const {},
+    Map<String, HandPartSlug> handPartAliases = const {},
+  }) : _aliases = Map.unmodifiable({
+         ..._seedAliases,
+         for (final entry in aliases.entries)
+           _normalize(entry.key): Set.unmodifiable(entry.value),
+       }),
+       _handPartAliases = Map.unmodifiable({
+         ..._seedHandPartAliases,
+         for (final entry in handPartAliases.entries)
+           _normalize(entry.key): entry.value,
+       });
 
   final Map<String, Set<BodyPartSlug>> _aliases;
+  final Map<String, HandPartSlug> _handPartAliases;
 
   /// Maps primary and secondary muscle labels into body-part slug sets.
   ///
   /// If a slug is present in both primary and secondary results, primary wins
-  /// and the slug is removed from [MuscleMappingResult.secondary].
+  /// and the slug is removed from [MuscleMappingResult.secondary]. Hand child
+  /// aliases still appear as their parent [BodyPartSlug.hands] in this coarse
+  /// result; use [mapToHighlights] to retain exact palm/finger child data.
   MuscleMappingResult mapPrimarySecondary({
     required Iterable<String> primaryMuscles,
     required Iterable<String> secondaryMuscles,
   }) {
-    final primary = <BodyPartSlug>{};
-    final secondary = <BodyPartSlug>{};
+    final primary = <_BodyPartRef>{};
+    final secondary = <_BodyPartRef>{};
     final unmapped = <String>{};
 
-    void collect(Iterable<String> labels, Set<BodyPartSlug> target) {
+    void collect(Iterable<String> labels, Set<_BodyPartRef> target) {
       for (final raw in labels) {
         final label = raw.trim();
         if (label.isEmpty) {
           continue;
         }
-        final slugs = _aliases[_normalize(label)];
-        if (slugs == null) {
+        final refs = _refsFor(label);
+        if (refs == null) {
           unmapped.add(label);
           continue;
         }
-        target.addAll(slugs);
+        target.addAll(refs);
       }
     }
 
     collect(primaryMuscles, primary);
     collect(secondaryMuscles, secondary);
-    secondary.removeAll(primary);
+    final primarySlugs = {for (final ref in primary) ref.slug};
+    secondary.removeWhere((ref) => primarySlugs.contains(ref.slug));
 
     return MuscleMappingResult(
-      primary: primary,
-      secondary: secondary,
+      primary: {for (final ref in primary) ref.slug},
+      secondary: {for (final ref in secondary) ref.slug},
       unmapped: unmapped,
     );
   }
 
   /// Converts mapped primary/secondary labels to heatmap highlight records.
+  ///
+  /// Hand-specific labels such as `Thumb`, `Index Finger`, `Middle Finger`,
+  /// `Ring Finger`, `Pinky`, and `Palm` emit `BodyPartSlug.hands` highlights
+  /// with [BodyHighlightData.handPart] populated instead of collapsing to a
+  /// single parent hand highlight.
   MuscleHighlightMapping mapToHighlights({
     required Iterable<String> primaryMuscles,
     required Iterable<String> secondaryMuscles,
     double primaryIntensity = 1,
     double secondaryIntensity = 0.45,
   }) {
-    final result = mapPrimarySecondary(
-      primaryMuscles: primaryMuscles,
-      secondaryMuscles: secondaryMuscles,
-    );
+    final primary = <_BodyPartRef>{};
+    final secondary = <_BodyPartRef>{};
+    final unmapped = <String>{};
+
+    void collect(Iterable<String> labels, Set<_BodyPartRef> target) {
+      for (final raw in labels) {
+        final label = raw.trim();
+        if (label.isEmpty) {
+          continue;
+        }
+        final refs = _refsFor(label);
+        if (refs == null) {
+          unmapped.add(label);
+          continue;
+        }
+        target.addAll(refs);
+      }
+    }
+
+    collect(primaryMuscles, primary);
+    collect(secondaryMuscles, secondary);
+    final primarySlugs = {for (final ref in primary) ref.slug};
+    secondary.removeWhere((ref) => primarySlugs.contains(ref.slug));
 
     return MuscleHighlightMapping(
       highlights: [
-        for (final slug in result.primary)
-          BodyHighlightData(slug: slug, intensity: primaryIntensity),
-        for (final slug in result.secondary)
-          BodyHighlightData(slug: slug, intensity: secondaryIntensity),
+        for (final ref in primary)
+          BodyHighlightData(
+            slug: ref.slug,
+            handPart: ref.handPart,
+            intensity: primaryIntensity,
+          ),
+        for (final ref in secondary)
+          BodyHighlightData(
+            slug: ref.slug,
+            handPart: ref.handPart,
+            intensity: secondaryIntensity,
+          ),
       ],
-      result: result,
+      result: MuscleMappingResult(
+        primary: {for (final ref in primary) ref.slug},
+        secondary: {for (final ref in secondary) ref.slug},
+        unmapped: unmapped,
+      ),
     );
+  }
+
+  Set<_BodyPartRef>? _refsFor(String label) {
+    final normalized = _normalize(label);
+    final slugs = _aliases[normalized];
+    final handPart = _handPartAliases[normalized];
+    if (slugs == null && handPart == null) {
+      return null;
+    }
+    return {
+      for (final slug in slugs ?? const <BodyPartSlug>{}) _BodyPartRef(slug),
+      if (handPart != null) _BodyPartRef(BodyPartSlug.hands, handPart),
+    };
   }
 
   static String _normalize(String label) => label
@@ -115,8 +176,18 @@ class MuscleToBodyPartAdapter {
     'Finger Flexors': {BodyPartSlug.forearm, BodyPartSlug.hands},
     'Finger Extensors': {BodyPartSlug.forearm, BodyPartSlug.hands},
     'Grip': {BodyPartSlug.forearm, BodyPartSlug.hands},
-    'Thumb': {BodyPartSlug.forearm, BodyPartSlug.hands},
-    'Palm': {BodyPartSlug.forearm, BodyPartSlug.hands},
+    'Thumb': {BodyPartSlug.forearm},
+    'Index': {},
+    'Index Finger': {},
+    'Middle': {},
+    'Middle Finger': {},
+    'Ring': {},
+    'Ring Finger': {},
+    'Little Finger': {},
+    'Pinky': {},
+    'Pinky Finger': {},
+    'Small Finger': {},
+    'Palm': {},
     'Quadriceps': {BodyPartSlug.quadriceps},
     'Quads': {BodyPartSlug.quadriceps},
     'Rectus Femoris': {BodyPartSlug.quadriceps},
@@ -150,6 +221,41 @@ class MuscleToBodyPartAdapter {
         _normalize(entry.key): Set.unmodifiable(entry.value),
     });
   }
+
+  static Map<String, HandPartSlug> get _seedHandPartAliases => {
+    for (final entry in {
+      'Thumb': HandPartSlug.thumb,
+      'Index': HandPartSlug.indexFinger,
+      'Index Finger': HandPartSlug.indexFinger,
+      'Middle': HandPartSlug.middleFinger,
+      'Middle Finger': HandPartSlug.middleFinger,
+      'Ring': HandPartSlug.ringFinger,
+      'Ring Finger': HandPartSlug.ringFinger,
+      'Little Finger': HandPartSlug.littleFinger,
+      'Pinky': HandPartSlug.littleFinger,
+      'Pinky Finger': HandPartSlug.littleFinger,
+      'Small Finger': HandPartSlug.littleFinger,
+      'Palm': HandPartSlug.palm,
+    }.entries)
+      _normalize(entry.key): entry.value,
+  };
+}
+
+class _BodyPartRef {
+  const _BodyPartRef(this.slug, [this.handPart]);
+
+  final BodyPartSlug slug;
+  final HandPartSlug? handPart;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _BodyPartRef &&
+        other.slug == slug &&
+        other.handPart == handPart;
+  }
+
+  @override
+  int get hashCode => Object.hash(slug, handPart);
 }
 
 /// Result of deterministic muscle-label mapping.

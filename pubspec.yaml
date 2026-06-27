@@ -1,5 +1,5 @@
-name: body_parts_heatmap
-description: Flutter body-part SVG heatmaps with deterministic muscle mapping semantics.
+name: anatomy_heatmap
+description: Flutter anatomical SVG heatmaps with deterministic muscle mapping semantics.
 version: 0.0.1
 homepage:
 

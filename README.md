@@ -1,9 +1,34 @@
-# body_parts_heatmap
+# anatomy_heatmap
 
-`body_parts_heatmap` is a small Flutter package for rendering body-part SVG
+## Credits
+
+`anatomy_heatmap` is the Flutter version / port of
+[`react-native-body-highlighter`](https://github.com/HichamELBSI/react-native-body-highlighter).
+It converts the upstream body SVG path data and outline data into Dart and adds
+Flutter `CustomPainter` rendering, deterministic muscle-to-region mapping, and
+tree-shaped hand regions (`hands -> palm/thumb/index/middle/ring/little`).
+
+Upstream credit:
+
+- **Project:** `react-native-body-highlighter`
+- **Author / copyright:** Copyright (c) 2022 ELABBASSI Hicham
+- **Repository:** <https://github.com/HichamELBSI/react-native-body-highlighter>
+- **Notice file:** [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+
+---
+
+`anatomy_heatmap` is a small Flutter package for rendering body-part SVG
 heatmaps. It ports the useful SVG path taxonomy from
 [`react-native-body-highlighter`](https://github.com/HichamELBSI/react-native-body-highlighter)
 and adds deterministic Frez-style muscle-to-body-part mapping semantics.
+
+## Preview
+
+Example app running on an iPhone 17 Pro Max simulator:
+
+<p align="center">
+  <img src="docs/images/anatomy_heatmap_iphone17_pro_max.png" alt="anatomy_heatmap example app running on an iPhone 17 Pro Max simulator" width="360">
+</p>
 
 ## Features
 
@@ -12,8 +37,8 @@ and adds deterministic Frez-style muscle-to-body-part mapping semantics.
 - Body-part slug highlighting with left/right/both/common side semantics.
 - Red/coral opacity heatmap rendering for primary, secondary, or aggregate load.
 - Explicit muscle-name-to-SVG-slug adapter; no fuzzy runtime inference.
-- Hand/finger semantic foundation with whole-hand fallback and TODOs for verified
-  finger segmentation.
+- Tree-shaped hand heatmaps: `hands` can be highlighted as a parent or split
+  into palm, thumb, index, middle, ring, and little-finger child regions.
 
 ## Usage
 
@@ -21,7 +46,7 @@ The bundled `example/` app includes a male/female toggle plus tap-to-edit
 activation sliders so you can inspect how each muscle slug responds.
 
 ```dart
-import 'package:body_parts_heatmap/body_parts_heatmap.dart';
+import 'package:anatomy_heatmap/anatomy_heatmap.dart';
 
 final adapter = MuscleToBodyPartAdapter();
 final mapped = adapter.mapToHighlights(
@@ -29,7 +54,7 @@ final mapped = adapter.mapToHighlights(
   secondaryMuscles: const ['Rotator Cuff', 'Forearm'],
 );
 
-BodyPartsHeatmap(
+AnatomyHeatmap(
   gender: BodyGender.male,
   views: const [BodyView.front, BodyView.back],
   highlights: mapped.highlights,
@@ -43,7 +68,7 @@ BodyPartsHeatmap(
 In layouts without a bounded height, provide `height`:
 
 ```dart
-const BodyPartsHeatmap(
+const AnatomyHeatmap(
   height: 360,
   highlights: [
     BodyHighlightData(slug: BodyPartSlug.chest, intensity: 1),
@@ -56,7 +81,7 @@ const BodyPartsHeatmap(
 
 The default `BodyHeatmapColorScheme.redLoad` uses:
 
-- inactive body parts: light gray;
+- inactive anatomical regions: light gray;
 - primary muscles: warm red/coral at higher opacity;
 - secondary muscles: the same hue at lower opacity;
 - aggregate workout heatmaps: intensity `0.0..1.0` controls opacity, where higher
@@ -72,26 +97,87 @@ Intensity is clamped safely. Values below `0` render inactive and values above
 One input can map to multiple slugs: for example `Finger Flexors` maps to both
 `forearm` and `hands`. If the same slug appears in both primary and secondary
 sets, primary wins. Unknown labels are returned in `unmapped` so product tests
-can detect missing taxonomy coverage.
+can detect missing taxonomy coverage. Specific hand labels such as `Thumb`,
+`Index Finger`, `Middle Finger`, `Ring Finger`, `Pinky`, and `Palm` are emitted
+as `BodyPartSlug.hands` highlights with `handPart` populated, so the full
+`AnatomyHeatmap` can color exact child regions instead of collapsing them to the
+whole hand.
 
-## Hand/finger foundation
+## Segmented hand/finger heatmaps
 
-The upstream body SVG contains segmented `hands` fragments, but it does not
-provide verified Frez semantic labels such as thumb, indexFinger/index, middle, ring, pinky,
-or palm. `HandPartsHeatmap` intentionally maps these labels to the whole hand
-for v1, and maps wrist to both hand and forearm. Finger-level mapping should be
-added only after visual verification of each path fragment.
+The upstream body SVG contains six `hands` fragments per side. `AnatomyHeatmap`
+classifies those fragments by geometry, so `BodyPartSlug.hands` can behave like
+a parent node with child palm/finger heatmap regions:
+
+```dart
+AnatomyHeatmap(
+  highlights: const [
+    // Parent hand highlight: applies to every palm/finger child unless a
+    // stronger child highlight is provided.
+    BodyHighlightData(slug: BodyPartSlug.hands, intensity: 0.25),
+    BodyHighlightData(
+      slug: BodyPartSlug.hands,
+      handPart: HandPartSlug.indexFinger,
+      intensity: 1,
+    ),
+    BodyHighlightData(
+      slug: BodyPartSlug.hands,
+      handPart: HandPartSlug.middleFinger,
+      intensity: 0.7,
+    ),
+  ],
+  onPartTap: (tap) {
+    // tap.slug == BodyPartSlug.hands
+    // tap.handPart is palm/thumb/indexFinger/middleFinger/ringFinger/littleFinger.
+  },
+);
+```
+
+For a zoomed hand-only UI, use the same taxonomy with `HandPartsHeatmap`:
+
+```dart
+HandPartsHeatmap(
+  views: const [BodyView.front],
+  sides: const [BodySide.left, BodySide.right],
+  highlights: const [
+    HandHighlightData(slug: HandPartSlug.palm, intensity: 0.3),
+    HandHighlightData(slug: HandPartSlug.thumb, intensity: 0.8),
+    HandHighlightData(slug: HandPartSlug.indexFinger, intensity: 1),
+    HandHighlightData(slug: HandPartSlug.middleFinger, intensity: 0.7),
+    HandHighlightData(slug: HandPartSlug.ringFinger, intensity: 0.5),
+    HandHighlightData(slug: HandPartSlug.littleFinger, intensity: 0.35),
+  ],
+  onPartTap: (tap) {
+    // tap.slug is palm/thumb/indexFinger/middleFinger/ringFinger/littleFinger.
+  },
+);
+```
 
 Future climbing patterns to model explicitly include `4F`, `3F front/back`,
 `2F front/middle/back`, `mono`, `pinch/thumb opposition`, and custom pockets.
 
-## Attribution and license
+## License
 
-This package is MIT licensed. SVG path data and outline data are converted from
-`react-native-body-highlighter`, which is MIT licensed. See
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for upstream copyright and
-license notice.
+`anatomy_heatmap` is MIT licensed. See [`LICENSE`](LICENSE) for the full package
+license text.
 
-The Flutter implementation uses `path_drawing` to parse SVG path strings into
-Flutter `Path` objects. This keeps rendering in a `CustomPainter` without a React
-Native or SVG widget runtime dependency.
+This repository also includes Dart-converted SVG path data and body outline data
+derived from `react-native-body-highlighter`, which is MIT licensed. The
+upstream copyright and MIT notice are preserved in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Keep that notice when
+redistributing this package or derived path data.
+
+Summary:
+
+- Package source code in this repository: MIT, copyright (c) 2026
+  `anatomy_heatmap` contributors.
+- Converted anatomy SVG path data and outline data: derived from
+  `react-native-body-highlighter`, MIT, copyright (c) 2022 ELABBASSI Hicham.
+- Runtime dependency `path_drawing` is pulled from pub.dev and remains under its
+  own package license; it is not vendored into this repository.
+
+Files:
+
+- [`LICENSE`](LICENSE): MIT license for this package.
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md): upstream MIT notice for
+  `react-native-body-highlighter` SVG path and outline data.

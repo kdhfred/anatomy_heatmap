@@ -1,4 +1,4 @@
-# body_parts_heatmap_example
+# anatomy_heatmap_example
 
 A new Flutter project.
 

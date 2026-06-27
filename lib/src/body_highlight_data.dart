@@ -1,12 +1,14 @@
 import 'package:flutter/widgets.dart';
 
 import 'body_types.dart';
+import 'hand_types.dart';
 
 /// Highlight data for one body-part slug.
 class BodyHighlightData {
   /// Creates a heatmap highlight.
   const BodyHighlightData({
     required this.slug,
+    this.handPart,
     this.intensity = 1,
     this.side = BodySide.both,
     this.color,
@@ -15,6 +17,13 @@ class BodyHighlightData {
 
   /// Body part to highlight.
   final BodyPartSlug slug;
+
+  /// Optional child region under [BodyPartSlug.hands].
+  ///
+  /// When null, a `hands` highlight applies to every rendered hand child
+  /// segment. When non-null, it applies only to the matching palm/finger
+  /// segment, giving callers a tree-shaped `hands -> finger/palm` heatmap.
+  final HandPartSlug? handPart;
 
   /// Normalized heatmap intensity. Values outside 0..1 are clamped at render
   /// time so callers can pass raw normalized calculations safely.
@@ -49,6 +58,7 @@ class BodyHighlightData {
   /// Creates a copy with selected fields changed.
   BodyHighlightData copyWith({
     BodyPartSlug? slug,
+    HandPartSlug? handPart,
     double? intensity,
     BodySide? side,
     Color? color,
@@ -56,6 +66,7 @@ class BodyHighlightData {
   }) {
     return BodyHighlightData(
       slug: slug ?? this.slug,
+      handPart: handPart ?? this.handPart,
       intensity: intensity ?? this.intensity,
       side: side ?? this.side,
       color: color ?? this.color,
@@ -65,7 +76,8 @@ class BodyHighlightData {
 
   @override
   String toString() {
-    return 'BodyHighlightData(slug: $slug, intensity: $intensity, '
+    return 'BodyHighlightData(slug: $slug, handPart: $handPart, '
+        'intensity: $intensity, '
         'side: $side, metric: $metric)';
   }
 }

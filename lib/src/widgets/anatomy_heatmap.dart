@@ -8,6 +8,8 @@ import '../body_highlight_data.dart';
 import '../body_types.dart';
 import '../data/body_svg_asset.dart';
 import '../data/body_svg_assets.dart';
+import '../data/hand_svg_segments.dart';
+import '../hand_types.dart';
 
 /// Callback payload for a tapped body-part fragment.
 class BodyPartTap {
@@ -17,6 +19,7 @@ class BodyPartTap {
     required this.view,
     required this.slug,
     required this.side,
+    this.handPart,
     this.highlight,
   });
 
@@ -29,6 +32,9 @@ class BodyPartTap {
   /// Tapped body-part slug.
   final BodyPartSlug slug;
 
+  /// Tapped child hand segment when [slug] is [BodyPartSlug.hands].
+  final HandPartSlug? handPart;
+
   /// Tapped SVG fragment side.
   final BodySide side;
 
@@ -36,10 +42,10 @@ class BodyPartTap {
   final BodyHighlightData? highlight;
 }
 
-/// Renders one or more body-part heatmap SVG views.
-class BodyPartsHeatmap extends StatelessWidget {
-  /// Creates a body-parts heatmap.
-  const BodyPartsHeatmap({
+/// Renders one or more anatomy heatmap SVG views.
+class AnatomyHeatmap extends StatelessWidget {
+  /// Creates an anatomy heatmap.
+  const AnatomyHeatmap({
     super.key,
     this.gender = BodyGender.male,
     this.views = const [BodyView.front, BodyView.back],
@@ -112,6 +118,24 @@ class BodyPartsHeatmap extends StatelessWidget {
   }
 }
 
+/// Backwards-compatible name for callers that still render a body-region map.
+@Deprecated('Use AnatomyHeatmap instead.')
+class BodyPartsHeatmap extends AnatomyHeatmap {
+  /// Creates a body-region heatmap using the legacy widget name.
+  const BodyPartsHeatmap({
+    super.key,
+    super.gender,
+    super.views,
+    super.highlights,
+    super.colorScheme,
+    super.onPartTap,
+    super.hiddenParts,
+    super.showOutline,
+    super.spacing,
+    super.height,
+  });
+}
+
 class _BodyViewHeatmap extends StatelessWidget {
   const _BodyViewHeatmap({
     required this.asset,
@@ -147,7 +171,7 @@ class _BodyViewHeatmap extends StatelessWidget {
                     }
                   },
             child: Semantics(
-              label: '${asset.gender.name} body heatmap ${asset.view.name}',
+              label: '${asset.gender.name} anatomy heatmap ${asset.view.name}',
               child: CustomPaint(
                 painter: _BodyHeatmapPainter(
                   asset: asset,
@@ -184,7 +208,12 @@ class _BodyViewHeatmap extends StatelessWidget {
             view: asset.view,
             slug: part.slug,
             side: fragment.side,
-            highlight: highlightIndex.highlightFor(part.slug, fragment.side),
+            handPart: fragment.handPart,
+            highlight: highlightIndex.highlightFor(
+              part.slug,
+              fragment.side,
+              handPart: fragment.handPart,
+            ),
           );
         }
       }
@@ -235,7 +264,11 @@ class _BodyHeatmapPainter extends CustomPainter {
         continue;
       }
       for (final fragment in _fragmentsFor(part)) {
-        final highlight = highlightIndex.highlightFor(part.slug, fragment.side);
+        final highlight = highlightIndex.highlightFor(
+          part.slug,
+          fragment.side,
+          handPart: fragment.handPart,
+        );
         final fillPaint = ui.Paint()
           ..style = ui.PaintingStyle.fill
           ..color = colorScheme.fillFor(highlight, slug: part.slug);
@@ -276,7 +309,11 @@ class _HighlightIndex {
 
   final Map<BodyPartSlug, List<BodyHighlightData>> _bySlug = {};
 
-  BodyHighlightData? highlightFor(BodyPartSlug slug, BodySide pathSide) {
+  BodyHighlightData? highlightFor(
+    BodyPartSlug slug,
+    BodySide pathSide, {
+    HandPartSlug? handPart,
+  }) {
     final candidates = _bySlug[slug];
     if (candidates == null || candidates.isEmpty) {
       return null;
@@ -285,6 +322,9 @@ class _HighlightIndex {
     BodyHighlightData? strongest;
     for (final highlight in candidates) {
       if (!_sideMatches(highlight.side, pathSide)) {
+        continue;
+      }
+      if (!_handPartMatches(slug, highlight.handPart, handPart)) {
         continue;
       }
       if (strongest == null ||
@@ -303,16 +343,54 @@ class _HighlightIndex {
       BodySide.right => pathSide == BodySide.right,
     };
   }
+
+  bool _handPartMatches(
+    BodyPartSlug slug,
+    HandPartSlug? highlightHandPart,
+    HandPartSlug? pathHandPart,
+  ) {
+    if (slug != BodyPartSlug.hands) {
+      return true;
+    }
+    if (highlightHandPart == null) {
+      return true;
+    }
+    if (pathHandPart == null) {
+      return false;
+    }
+    if (highlightHandPart == HandPartSlug.wrist) {
+      return pathHandPart == HandPartSlug.palm;
+    }
+    return highlightHandPart == pathHandPart;
+  }
 }
 
 class _PathFragment {
-  const _PathFragment(this.side, this.pathData);
+  const _PathFragment(this.side, this.pathData, {this.handPart});
 
   final BodySide side;
   final String pathData;
+  final HandPartSlug? handPart;
 }
 
 Iterable<_PathFragment> _fragmentsFor(BodyPartSvgData part) sync* {
+  if (part.slug == BodyPartSlug.hands) {
+    for (final segment in handSvgSegmentsFor(part, BodySide.left)) {
+      yield _PathFragment(
+        segment.side,
+        segment.pathData,
+        handPart: segment.slug,
+      );
+    }
+    for (final segment in handSvgSegmentsFor(part, BodySide.right)) {
+      yield _PathFragment(
+        segment.side,
+        segment.pathData,
+        handPart: segment.slug,
+      );
+    }
+    return;
+  }
   for (final path in part.common) {
     yield _PathFragment(BodySide.common, path);
   }
