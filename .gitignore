@@ -32,6 +32,20 @@ migrate_working_dir/
 
 # Local agent/runtime state
 .omx/
+CODEX_PROMPT.md
+
+# Local secrets and signing material
+.env
+.env.*
+*.pem
+*.key
+*.p8
+*.p12
+*.mobileprovision
+*.provisionprofile
+GoogleService-Info.plist
+google-services.json
+firebase_options.dart
 
 # macOS Finder metadata
 .DS_Store
