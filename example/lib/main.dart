@@ -6,15 +6,32 @@ void main() => runApp(const HeatmapExampleApp());
 class HeatmapExampleApp extends StatelessWidget {
   const HeatmapExampleApp({super.key});
 
+  static const _seedColor = Color(0xFFFF5A4F);
+
+  static ThemeData _theme(Brightness brightness) {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: _seedColor,
+      brightness: brightness,
+    );
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: colorScheme.surface,
+      sliderTheme: SliderThemeData(
+        activeTrackColor: colorScheme.primary,
+        thumbColor: colorScheme.primary,
+        inactiveTrackColor: colorScheme.primaryContainer,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFFFF5A4F),
-        scaffoldBackgroundColor: Colors.white,
-      ),
+      themeMode: ThemeMode.system,
+      theme: _theme(Brightness.light),
+      darkTheme: _theme(Brightness.dark),
       home: const HeatmapExampleScreen(),
     );
   }
@@ -29,6 +46,16 @@ class HeatmapExampleScreen extends StatefulWidget {
 
 class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
   BodyGender _gender = BodyGender.male;
+  BodyHeatmapColorPreset _preset = BodyHeatmapColorPreset.muscleGroups;
+  HandDetailLevel _handDetailLevel = HandDetailLevel.segments;
+  _RedLoadSeed _redLoadSeed = _redLoadSeeds.first;
+
+  static const _redLoadSeeds = [
+    _RedLoadSeed('Coral', BodyHeatmapColorScheme.defaultRedLoadSeedColor),
+    _RedLoadSeed('Blue', Color(0xFF2563EB)),
+    _RedLoadSeed('Green', Color(0xFF16A34A)),
+    _RedLoadSeed('Purple', Color(0xFF9333EA)),
+  ];
 
   final Map<BodyPartSlug, double> _bodyIntensities = {
     BodyPartSlug.chest: 1,
@@ -69,27 +96,46 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
 
   List<BodyHighlightData> get _bodyHighlights => [
     for (final entry in _bodyIntensities.entries)
-      if (entry.value > 0)
+      if (entry.value > 0 || entry.key == BodyPartSlug.hands)
         BodyHighlightData(slug: entry.key, intensity: entry.value),
     for (final entry in _handIntensities.entries)
-      if (entry.value > 0)
-        BodyHighlightData(
-          slug: BodyPartSlug.hands,
-          handPart: entry.key,
-          intensity: entry.value,
-        ),
+      BodyHighlightData(
+        slug: BodyPartSlug.hands,
+        handPart: entry.key,
+        intensity: entry.value,
+      ),
   ];
 
   List<HandHighlightData> get _handHighlights => [
     for (final entry in _handIntensities.entries)
-      if (entry.value > 0)
-        HandHighlightData(slug: entry.key, intensity: entry.value),
+      HandHighlightData(slug: entry.key, intensity: entry.value),
   ];
+
+  String get _presetLabel {
+    return switch (_preset) {
+      BodyHeatmapColorPreset.redLoad => 'Red Load',
+      BodyHeatmapColorPreset.muscleGroups => 'Muscle Groups',
+    };
+  }
+
+  String get _handDetailLabel {
+    return switch (_handDetailLevel) {
+      HandDetailLevel.handsOnly => 'Hands Only',
+      HandDetailLevel.segments => 'Segments',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final heatmapColorScheme = BodyHeatmapColorScheme.fromPreset(
+      _preset,
+      brightness: theme.brightness,
+      redLoadSeedColor: _redLoadSeed.color,
+    );
+
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -105,23 +151,89 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
               Text(
                 'Tap a muscle or finger, then adjust activation in the bottom sheet.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
               ),
               const SizedBox(height: 14),
-              Center(
-                child: SegmentedButton<BodyGender>(
-                  segments: const [
-                    ButtonSegment(value: BodyGender.male, label: Text('Male')),
-                    ButtonSegment(
-                      value: BodyGender.female,
-                      label: Text('Female'),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  SegmentedButton<BodyGender>(
+                    segments: const [
+                      ButtonSegment(
+                        value: BodyGender.male,
+                        label: Text('Male'),
+                      ),
+                      ButtonSegment(
+                        value: BodyGender.female,
+                        label: Text('Female'),
+                      ),
+                    ],
+                    selected: {_gender},
+                    onSelectionChanged: (selection) {
+                      setState(() => _gender = selection.single);
+                    },
+                  ),
+                  PopupMenuButton<BodyHeatmapColorPreset>(
+                    initialValue: _preset,
+                    onSelected: (preset) {
+                      setState(() => _preset = preset);
+                    },
+                    itemBuilder: (context) {
+                      return const [
+                        PopupMenuItem(
+                          value: BodyHeatmapColorPreset.redLoad,
+                          child: Text('Red Load'),
+                        ),
+                        PopupMenuItem(
+                          value: BodyHeatmapColorPreset.muscleGroups,
+                          child: Text('Muscle Groups'),
+                        ),
+                      ];
+                    },
+                    child: Chip(label: Text('Style: $_presetLabel')),
+                  ),
+                  PopupMenuButton<HandDetailLevel>(
+                    initialValue: _handDetailLevel,
+                    onSelected: (level) {
+                      setState(() => _handDetailLevel = level);
+                    },
+                    itemBuilder: (context) {
+                      return const [
+                        PopupMenuItem(
+                          value: HandDetailLevel.handsOnly,
+                          child: Text('Hands Only'),
+                        ),
+                        PopupMenuItem(
+                          value: HandDetailLevel.segments,
+                          child: Text('Segments'),
+                        ),
+                      ];
+                    },
+                    child: Chip(label: Text('Hands: $_handDetailLabel')),
+                  ),
+                  if (_preset == BodyHeatmapColorPreset.redLoad)
+                    PopupMenuButton<_RedLoadSeed>(
+                      initialValue: _redLoadSeed,
+                      onSelected: (seed) {
+                        setState(() => _redLoadSeed = seed);
+                      },
+                      itemBuilder: (context) {
+                        return [
+                          for (final seed in _redLoadSeeds)
+                            PopupMenuItem(
+                              value: seed,
+                              child: _SeedColorLabel(seed: seed),
+                            ),
+                        ];
+                      },
+                      child: Chip(
+                        avatar: _SeedColorDot(color: _redLoadSeed.color),
+                        label: Text('Seed: ${_redLoadSeed.label}'),
+                      ),
                     ),
-                  ],
-                  selected: {_gender},
-                  onSelectionChanged: (selection) {
-                    setState(() => _gender = selection.single);
-                  },
-                ),
+                ],
               ),
               const SizedBox(height: 16),
               Expanded(
@@ -130,6 +242,8 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                   gender: _gender,
                   views: const [BodyView.front, BodyView.back],
                   highlights: _bodyHighlights,
+                  colorScheme: heatmapColorScheme,
+                  handDetailLevel: _handDetailLevel,
                   onPartTap: _handlePartTap,
                 ),
               ),
@@ -137,6 +251,7 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
               _SegmentedHandPanel(
                 highlights: _handHighlights,
                 intensities: _handIntensities,
+                colorScheme: heatmapColorScheme,
                 onPartTap: _handleHandPartTap,
                 onSelect: _showHandIntensitySheet,
               ),
@@ -170,18 +285,23 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
   void _showIntensitySheet(BodyPartSlug slug) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       showDragHandle: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final colors = Theme.of(context).colorScheme;
             final value = _bodyIntensities[slug] ?? 0;
             final percent = (value * 100).round();
 
             void update(double next) {
               setState(() {
                 if (next <= 0) {
-                  _bodyIntensities.remove(slug);
+                  if (slug == BodyPartSlug.hands) {
+                    _bodyIntensities[slug] = 0;
+                  } else {
+                    _bodyIntensities.remove(slug);
+                  }
                 } else {
                   _bodyIntensities[slug] = next;
                 }
@@ -207,7 +327,7 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                   Text(
                     '$percent% activation',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade700),
+                    style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                   const SizedBox(height: 20),
                   Slider(
@@ -216,8 +336,6 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                     max: 1,
                     divisions: 20,
                     label: '$percent%',
-                    activeColor: const Color(0xFFFF5A4F),
-                    inactiveColor: const Color(0xFFFFD7D3),
                     onChanged: update,
                   ),
                   Row(
@@ -245,21 +363,18 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
   void _showHandIntensitySheet(HandPartSlug slug) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       showDragHandle: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final colors = Theme.of(context).colorScheme;
             final value = _handIntensities[slug] ?? 0;
             final percent = (value * 100).round();
 
             void update(double next) {
               setState(() {
-                if (next <= 0) {
-                  _handIntensities.remove(slug);
-                } else {
-                  _handIntensities[slug] = next;
-                }
+                _handIntensities[slug] = next;
               });
               setSheetState(() {});
             }
@@ -282,7 +397,7 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                   Text(
                     '$percent% finger load',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade700),
+                    style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                   const SizedBox(height: 20),
                   Slider(
@@ -291,8 +406,6 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                     max: 1,
                     divisions: 20,
                     label: '$percent%',
-                    activeColor: const Color(0xFFFF5A4F),
-                    inactiveColor: const Color(0xFFFFD7D3),
                     onChanged: update,
                   ),
                   Row(
@@ -318,26 +431,73 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
   }
 }
 
+class _RedLoadSeed {
+  const _RedLoadSeed(this.label, this.color);
+
+  final String label;
+  final Color color;
+}
+
+class _SeedColorLabel extends StatelessWidget {
+  const _SeedColorLabel({required this.seed});
+
+  final _RedLoadSeed seed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _SeedColorDot(color: seed.color),
+        const SizedBox(width: 8),
+        Text(seed.label),
+      ],
+    );
+  }
+}
+
+class _SeedColorDot extends StatelessWidget {
+  const _SeedColorDot({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+      ),
+      child: const SizedBox.square(dimension: 14),
+    );
+  }
+}
+
 class _SegmentedHandPanel extends StatelessWidget {
   const _SegmentedHandPanel({
     required this.highlights,
     required this.intensities,
+    required this.colorScheme,
     required this.onPartTap,
     required this.onSelect,
   });
 
   final List<HandHighlightData> highlights;
   final Map<HandPartSlug, double> intensities;
+  final BodyHeatmapColorScheme colorScheme;
   final ValueChanged<HandPartTap> onPartTap;
   final ValueChanged<HandPartSlug> onSelect;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFAF9),
-        border: Border.all(color: const Color(0xFFFFD7D3)),
+        color: colors.surfaceContainerLowest,
+        border: Border.all(color: colors.outlineVariant),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -352,15 +512,16 @@ class _SegmentedHandPanel extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 SizedBox(
-                  height: 108,
+                  height: 76,
                   child: HandPartsHeatmap(
                     views: const [BodyView.front],
                     sides: const [BodySide.left, BodySide.right],
                     highlights: highlights,
+                    colorScheme: colorScheme,
                     onPartTap: onPartTap,
-                    spacing: 16,
+                    spacing: 12,
                   ),
                 ),
               ],
@@ -391,6 +552,7 @@ class _HandSegmentSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final active =
         intensities.entries.where((entry) => entry.value > 0).toList()
           ..sort((a, b) => b.value.compareTo(a.value));
@@ -403,8 +565,8 @@ class _HandSegmentSummary extends StatelessWidget {
         for (final entry in active)
           ActionChip(
             visualDensity: VisualDensity.compact,
-            backgroundColor: Colors.white,
-            side: BorderSide(color: Colors.red.shade100),
+            backgroundColor: colors.surfaceContainerLow,
+            side: BorderSide(color: colors.outlineVariant),
             onPressed: () => onSelect(entry.key),
             label: Text(
               '${entry.key.label} ${(entry.value * 100).round()}%',
@@ -424,6 +586,7 @@ class _ActiveBodySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final active =
         intensities.entries.where((entry) => entry.value > 0).toList()
           ..sort((a, b) => b.value.compareTo(a.value));
@@ -432,7 +595,7 @@ class _ActiveBodySummary extends StatelessWidget {
       return Text(
         'No active body regions. Tap a region to add activation.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.grey.shade700),
+        style: TextStyle(color: colors.onSurfaceVariant),
       );
     }
 
@@ -443,8 +606,8 @@ class _ActiveBodySummary extends StatelessWidget {
       children: [
         for (final entry in active)
           ActionChip(
-            backgroundColor: const Color(0xFFFFECEA),
-            side: BorderSide(color: Colors.red.shade100),
+            backgroundColor: colors.primaryContainer.withValues(alpha: 0.36),
+            side: BorderSide(color: colors.outlineVariant),
             onPressed: () => onSelect(entry.key),
             label: Text(
               '${entry.key.label} ${(entry.value * 100).round()}%',

@@ -252,13 +252,7 @@ class _HandHeatmapPainter extends CustomPainter {
   }
 
   Color _fillFor(HandHighlightData? highlight) {
-    if (highlight == null || highlight.normalizedIntensity <= 0) {
-      return colorScheme.inactiveFill;
-    }
-    return colorScheme.colorForIntensity(
-      highlight.normalizedIntensity,
-      baseColor: highlight.color,
-    );
+    return colorScheme.fillForHand(highlight);
   }
 
   @override

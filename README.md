@@ -35,15 +35,21 @@ Example app running on an iPhone 17 Pro Max simulator:
 - Male and female body maps.
 - Front and back body views.
 - Body-part slug highlighting with left/right/both/common side semantics.
-- Red/coral opacity heatmap rendering for primary, secondary, or aggregate load.
+- Seed-color opacity heatmap rendering for primary, secondary, or aggregate load.
+- Preset color styles, including a region-specific `muscleGroups` palette.
 - Explicit muscle-name-to-SVG-slug adapter; no fuzzy runtime inference.
 - Tree-shaped hand heatmaps: `hands` can be highlighted as a parent or split
   into palm, thumb, index, middle, ring, and little-finger child regions.
+- Configurable full-body hand detail level: aggregate to parent `hands` or
+  render palm/finger child segments.
+- Example app follows the device/system light or dark theme and can switch
+  preset styles live.
 
 ## Usage
 
-The bundled `example/` app includes a male/female toggle plus tap-to-edit
-activation sliders so you can inspect how each muscle slug responds.
+The bundled `example/` app includes a male/female toggle, preset style selector,
+and tap-to-edit activation sliders so you can inspect how each muscle slug
+responds.
 
 ```dart
 import 'package:anatomy_heatmap/anatomy_heatmap.dart';
@@ -58,7 +64,8 @@ AnatomyHeatmap(
   gender: BodyGender.male,
   views: const [BodyView.front, BodyView.back],
   highlights: mapped.highlights,
-  colorScheme: BodyHeatmapColorScheme.redLoad,
+  colorScheme: BodyHeatmapColorScheme.muscleGroups,
+  handDetailLevel: HandDetailLevel.segments,
   onPartTap: (tap) {
     // tap.slug, tap.side, tap.view, tap.highlight?.metric
   },
@@ -90,6 +97,81 @@ The default `BodyHeatmapColorScheme.redLoad` uses:
 Intensity is clamped safely. Values below `0` render inactive and values above
 `1` render at maximum heat opacity.
 
+`redLoad` is a seed-based single-hue preset. The default seed is the existing
+coral red, but you can choose another hue and keep the same opacity model:
+
+```dart
+final scheme = BodyHeatmapColorScheme.fromPreset(
+  BodyHeatmapColorPreset.redLoad,
+  brightness: Theme.of(context).brightness,
+  redLoadSeedColor: const Color(0xFF2563EB),
+);
+```
+
+For a more anatomical/categorical look, use
+`BodyHeatmapColorScheme.muscleGroups`. It keeps the same intensity-based opacity
+model but assigns different base hues to major regions and hand child segments.
+Caller-provided `BodyHighlightData.color` still overrides any preset color.
+For system-aware examples, select a preset style and pass the current brightness:
+
+```dart
+final scheme = BodyHeatmapColorScheme.fromPreset(
+  BodyHeatmapColorPreset.muscleGroups,
+  brightness: Theme.of(context).brightness,
+);
+```
+
+Preset colors are only defaults. Inject product-specific color settings with
+`withOverrides`:
+
+```dart
+final scheme = BodyHeatmapColorScheme.fromPreset(
+  BodyHeatmapColorPreset.muscleGroups,
+  brightness: Theme.of(context).brightness,
+).withOverrides(
+  bodyPartHeatColors: {
+    BodyPartSlug.chest: const Color(0xFFDC2626),
+    BodyPartSlug.quadriceps: const Color(0xFF16A34A),
+  },
+  handPartHeatColors: {
+    HandPartSlug.indexFinger: const Color(0xFF0284C7),
+  },
+);
+```
+
+Use `copyWith` instead when you want to replace a color map entirely.
+
+## Hand detail levels
+
+The full `AnatomyHeatmap` can treat hands at two levels:
+
+- `HandDetailLevel.handsOnly`: renders each hand as a parent `hands` region.
+  A parent `hands` highlight controls the whole hand; if no parent highlight is
+  supplied, existing palm/finger highlights are aggregated into that region.
+- `HandDetailLevel.segments`: renders palm, thumb, index, middle, ring, and
+  little-finger child paths in the full body map. Exact child highlights take
+  precedence over a parent `hands` fallback so finger opacity remains adjustable.
+
+```dart
+AnatomyHeatmap(
+  highlights: mapped.highlights,
+  handDetailLevel: HandDetailLevel.handsOnly,
+);
+```
+
+The adapter can also emit either level:
+
+```dart
+final mapped = MuscleToBodyPartAdapter().mapToHighlights(
+  primaryMuscles: targetMuscles,
+  secondaryMuscles: synergistMuscles,
+  handDetailLevel: HandDetailLevel.handsOnly,
+);
+```
+
+Use `HandPartsHeatmap` when you want a dedicated zoomed-in palm/finger panel
+regardless of the full-body hand level.
+
 ## Deterministic muscle adapter
 
 `MuscleToBodyPartAdapter` maps exercise metadata such as `target_muscles` and
@@ -101,7 +183,8 @@ can detect missing taxonomy coverage. Specific hand labels such as `Thumb`,
 `Index Finger`, `Middle Finger`, `Ring Finger`, `Pinky`, and `Palm` are emitted
 as `BodyPartSlug.hands` highlights with `handPart` populated, so the full
 `AnatomyHeatmap` can color exact child regions instead of collapsing them to the
-whole hand.
+whole hand. Pass `handDetailLevel: HandDetailLevel.handsOnly` to
+`mapToHighlights` when your product wants to keep the data at parent-hand level.
 
 ## Segmented hand/finger heatmaps
 

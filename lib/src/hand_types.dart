@@ -2,6 +2,20 @@ import 'package:flutter/widgets.dart';
 
 import 'body_types.dart';
 
+/// Controls how [BodyPartSlug.hands] is represented in the full anatomy map.
+enum HandDetailLevel {
+  /// Render and hit-test each hand as one parent body region.
+  ///
+  /// A parent `hands` highlight controls the whole hand. Hand child highlights
+  /// are aggregated into the parent region only when no parent highlight exists.
+  handsOnly,
+
+  /// Render and hit-test palm/thumb/index/middle/ring/little child segments.
+  ///
+  /// Exact child highlights take precedence over a parent `hands` fallback.
+  segments,
+}
+
 /// Hand/finger semantic labels exposed by the segmented hand heatmap.
 enum HandPartSlug {
   palm,

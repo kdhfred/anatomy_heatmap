@@ -85,6 +85,32 @@ void main() {
         isEmpty,
       );
     });
+
+    test('can collapse specific hand labels to parent hands highlights', () {
+      final mapped = MuscleToBodyPartAdapter().mapToHighlights(
+        primaryMuscles: ['Thumb', 'Index Finger'],
+        secondaryMuscles: ['Pinky'],
+        handDetailLevel: HandDetailLevel.handsOnly,
+      );
+
+      expect(mapped.result.primary, contains(BodyPartSlug.hands));
+      expect(mapped.result.primary, contains(BodyPartSlug.forearm));
+      expect(mapped.result.secondary, isNot(contains(BodyPartSlug.hands)));
+      expect(
+        mapped.highlights.where((data) => data.slug == BodyPartSlug.hands),
+        contains(
+          isA<BodyHighlightData>()
+              .having((data) => data.handPart, 'handPart', isNull)
+              .having((data) => data.intensity, 'intensity', 1),
+        ),
+      );
+      expect(
+        mapped.highlights.where(
+          (data) => data.slug == BodyPartSlug.hands && data.handPart != null,
+        ),
+        isEmpty,
+      );
+    });
   });
 
   group('heatmap intensity', () {
@@ -116,6 +142,178 @@ void main() {
         isNot(scheme.hairFill),
       );
     });
+
+    test('muscle group preset uses region and hand-part colors', () {
+      const scheme = BodyHeatmapColorScheme.muscleGroups;
+
+      final chest = scheme.fillFor(
+        const BodyHighlightData(slug: BodyPartSlug.chest, intensity: 1),
+        slug: BodyPartSlug.chest,
+      );
+      final quads = scheme.fillFor(
+        const BodyHighlightData(slug: BodyPartSlug.quadriceps, intensity: 1),
+        slug: BodyPartSlug.quadriceps,
+      );
+      final index = scheme.fillFor(
+        const BodyHighlightData(
+          slug: BodyPartSlug.hands,
+          handPart: HandPartSlug.indexFinger,
+          intensity: 1,
+        ),
+        slug: BodyPartSlug.hands,
+      );
+      final palm = scheme.fillForHand(
+        const HandHighlightData(slug: HandPartSlug.palm, intensity: 1),
+      );
+
+      expect(chest, isNot(quads));
+      expect(index, isNot(palm));
+      expect(chest.a, closeTo(0.92, 0.01));
+      expect(quads.a, closeTo(0.92, 0.01));
+      expect(index.a, closeTo(0.92, 0.01));
+      expect(palm.a, closeTo(0.92, 0.01));
+    });
+
+    test('muscle group preset has light and dark brightness variants', () {
+      expect(
+        BodyHeatmapColorScheme.fromPreset(
+          BodyHeatmapColorPreset.redLoad,
+          brightness: Brightness.light,
+        ),
+        same(BodyHeatmapColorScheme.redLoad),
+      );
+      expect(
+        BodyHeatmapColorScheme.fromPreset(
+          BodyHeatmapColorPreset.redLoad,
+          brightness: Brightness.dark,
+        ),
+        same(BodyHeatmapColorScheme.redLoadDark),
+      );
+      expect(
+        BodyHeatmapColorScheme.redLoadForBrightness(Brightness.light),
+        same(BodyHeatmapColorScheme.redLoad),
+      );
+      expect(
+        BodyHeatmapColorScheme.redLoadForBrightness(Brightness.dark),
+        same(BodyHeatmapColorScheme.redLoadDark),
+      );
+      expect(
+        BodyHeatmapColorScheme.fromPreset(
+          BodyHeatmapColorPreset.muscleGroups,
+          brightness: Brightness.light,
+        ),
+        same(BodyHeatmapColorScheme.muscleGroups),
+      );
+      expect(
+        BodyHeatmapColorScheme.fromPreset(
+          BodyHeatmapColorPreset.muscleGroups,
+          brightness: Brightness.dark,
+        ),
+        same(BodyHeatmapColorScheme.muscleGroupsDark),
+      );
+      expect(
+        BodyHeatmapColorScheme.muscleGroupsForBrightness(Brightness.light),
+        same(BodyHeatmapColorScheme.muscleGroups),
+      );
+      expect(
+        BodyHeatmapColorScheme.muscleGroupsForBrightness(Brightness.dark),
+        same(BodyHeatmapColorScheme.muscleGroupsDark),
+      );
+      expect(
+        BodyHeatmapColorScheme.muscleGroupsDark.bodyPartHeatColors,
+        same(BodyHeatmapColorScheme.muscleGroups.bodyPartHeatColors),
+      );
+      expect(
+        BodyHeatmapColorScheme.muscleGroupsDark.handPartHeatColors,
+        same(BodyHeatmapColorScheme.muscleGroups.handPartHeatColors),
+      );
+      expect(
+        BodyHeatmapColorScheme.muscleGroupsDark.inactiveFill,
+        isNot(BodyHeatmapColorScheme.muscleGroups.inactiveFill),
+      );
+    });
+
+    test('red load preset can be seeded from a custom hue', () {
+      const blueSeed = Color(0xFF2563EB);
+
+      expect(
+        BodyHeatmapColorScheme.fromPreset(
+          BodyHeatmapColorPreset.redLoad,
+          redLoadSeedColor: BodyHeatmapColorScheme.defaultRedLoadSeedColor,
+        ),
+        same(BodyHeatmapColorScheme.redLoad),
+      );
+
+      final seededLight = BodyHeatmapColorScheme.fromPreset(
+        BodyHeatmapColorPreset.redLoad,
+        redLoadSeedColor: blueSeed,
+      );
+      expect(seededLight.heatColor, blueSeed);
+      expect(
+        seededLight.inactiveFill,
+        BodyHeatmapColorScheme.redLoad.inactiveFill,
+      );
+      expect(
+        seededLight.borderColor,
+        BodyHeatmapColorScheme.redLoad.borderColor,
+      );
+      expect(seededLight, isNot(same(BodyHeatmapColorScheme.redLoad)));
+
+      final seededDark = BodyHeatmapColorScheme.redLoadFromSeed(
+        blueSeed,
+        brightness: Brightness.dark,
+      );
+      expect(seededDark.heatColor, blueSeed);
+      expect(
+        seededDark.inactiveFill,
+        BodyHeatmapColorScheme.redLoadDark.inactiveFill,
+      );
+      expect(
+        seededDark.borderColor,
+        BodyHeatmapColorScheme.redLoadDark.borderColor,
+      );
+    });
+
+    test(
+      'preset color settings can be injected without replacing defaults',
+      () {
+        const customChest = Color(0xFF6D28D9);
+        const customIndex = Color(0xFF14B8A6);
+
+        final scheme =
+            BodyHeatmapColorScheme.fromPreset(
+              BodyHeatmapColorPreset.muscleGroups,
+              brightness: Brightness.dark,
+            ).withOverrides(
+              inactiveFill: const Color(0xFF101010),
+              bodyPartHeatColors: const {BodyPartSlug.chest: customChest},
+              handPartHeatColors: const {HandPartSlug.indexFinger: customIndex},
+            );
+
+        expect(scheme.inactiveFill, const Color(0xFF101010));
+        expect(scheme.bodyPartHeatColors[BodyPartSlug.chest], customChest);
+        expect(
+          scheme.bodyPartHeatColors[BodyPartSlug.quadriceps],
+          BodyHeatmapColorScheme
+              .muscleGroupsDark
+              .bodyPartHeatColors[BodyPartSlug.quadriceps],
+        );
+        expect(
+          scheme.handPartHeatColors[HandPartSlug.indexFinger],
+          customIndex,
+        );
+        expect(
+          scheme.handPartHeatColors[HandPartSlug.palm],
+          BodyHeatmapColorScheme
+              .muscleGroupsDark
+              .handPartHeatColors[HandPartSlug.palm],
+        );
+
+        final replaced = scheme.copyWith(bodyPartHeatColors: const {});
+        expect(replaced.bodyPartHeatColors, isEmpty);
+        expect(replaced.handPartHeatColors, isNotEmpty);
+      },
+    );
   });
 
   group('hand tree taxonomy', () {
@@ -337,7 +535,7 @@ void main() {
     }
   });
 
-  testWidgets('full anatomy heatmap reports hand child segments', (
+  testWidgets('full anatomy heatmap reports exact hand child segments', (
     tester,
   ) async {
     final taps = <BodyPartTap>[];
@@ -353,11 +551,11 @@ void main() {
               gender: BodyGender.male,
               views: const [BodyView.front],
               highlights: const [
-                BodyHighlightData(slug: BodyPartSlug.hands, intensity: 0.2),
+                BodyHighlightData(slug: BodyPartSlug.hands, intensity: 1),
                 BodyHighlightData(
                   slug: BodyPartSlug.hands,
                   handPart: HandPartSlug.indexFinger,
-                  intensity: 0.95,
+                  intensity: 0,
                 ),
               ],
               onPartTap: taps.add,
@@ -397,8 +595,75 @@ void main() {
     expect(taps.single.slug, BodyPartSlug.hands);
     expect(taps.single.handPart, HandPartSlug.indexFinger);
     expect(taps.single.highlight?.handPart, HandPartSlug.indexFinger);
-    expect(taps.single.highlight?.normalizedIntensity, 0.95);
+    expect(taps.single.highlight?.normalizedIntensity, 0);
   });
+
+  testWidgets(
+    'full anatomy heatmap lets parent hands zero control collapsed hands',
+    (tester) async {
+      final taps = <BodyPartTap>[];
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: 200,
+              height: 400,
+              child: AnatomyHeatmap(
+                gender: BodyGender.male,
+                views: const [BodyView.front],
+                handDetailLevel: HandDetailLevel.handsOnly,
+                highlights: const [
+                  BodyHighlightData(slug: BodyPartSlug.hands, intensity: 0),
+                  BodyHighlightData(
+                    slug: BodyPartSlug.hands,
+                    handPart: HandPartSlug.indexFinger,
+                    intensity: 0.95,
+                  ),
+                ],
+                onPartTap: taps.add,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final asset = bodySvgAssetFor(BodyGender.male, BodyView.front);
+      final hand = asset.parts.firstWhere(
+        (part) => part.slug == BodyPartSlug.hands,
+      );
+      final indexFingerCenter = parseSvgPathData(
+        hand.left[2],
+      ).getBounds().center;
+      final paintFinder = find.byType(CustomPaint).first;
+      final topLeft = tester.getTopLeft(paintFinder);
+      final size = tester.getSize(paintFinder);
+
+      Offset toGlobal(ui.Offset svgPoint) {
+        final viewBox = asset.viewBox;
+        final scale =
+            (size.width / viewBox.width) < (size.height / viewBox.height)
+            ? size.width / viewBox.width
+            : size.height / viewBox.height;
+        final dx = (size.width - viewBox.width * scale) / 2;
+        final dy = (size.height - viewBox.height * scale) / 2;
+        return topLeft +
+            Offset(
+              dx + (svgPoint.dx - viewBox.left) * scale,
+              dy + (svgPoint.dy - viewBox.top) * scale,
+            );
+      }
+
+      await tester.tapAt(toGlobal(indexFingerCenter));
+      await tester.pump();
+
+      expect(taps.single.slug, BodyPartSlug.hands);
+      expect(taps.single.handPart, isNull);
+      expect(taps.single.highlight?.handPart, isNull);
+      expect(taps.single.highlight?.normalizedIntensity, 0);
+    },
+  );
 
   test('license and third-party notices exist', () {
     expect(File('LICENSE').existsSync(), isTrue);

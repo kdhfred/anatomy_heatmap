@@ -72,12 +72,14 @@ class MuscleToBodyPartAdapter {
   /// Hand-specific labels such as `Thumb`, `Index Finger`, `Middle Finger`,
   /// `Ring Finger`, `Pinky`, and `Palm` emit `BodyPartSlug.hands` highlights
   /// with [BodyHighlightData.handPart] populated instead of collapsing to a
-  /// single parent hand highlight.
+  /// single parent hand highlight by default. Pass
+  /// [HandDetailLevel.handsOnly] to collapse them to the parent hand region.
   MuscleHighlightMapping mapToHighlights({
     required Iterable<String> primaryMuscles,
     required Iterable<String> secondaryMuscles,
     double primaryIntensity = 1,
     double secondaryIntensity = 0.45,
+    HandDetailLevel handDetailLevel = HandDetailLevel.segments,
   }) {
     final primary = <_BodyPartRef>{};
     final secondary = <_BodyPartRef>{};
@@ -94,7 +96,9 @@ class MuscleToBodyPartAdapter {
           unmapped.add(label);
           continue;
         }
-        target.addAll(refs);
+        target.addAll(
+          refs.map((ref) => _refForDetailLevel(ref, handDetailLevel)),
+        );
       }
     }
 
@@ -124,6 +128,17 @@ class MuscleToBodyPartAdapter {
         unmapped: unmapped,
       ),
     );
+  }
+
+  _BodyPartRef _refForDetailLevel(
+    _BodyPartRef ref,
+    HandDetailLevel handDetailLevel,
+  ) {
+    if (handDetailLevel == HandDetailLevel.handsOnly &&
+        ref.slug == BodyPartSlug.hands) {
+      return const _BodyPartRef(BodyPartSlug.hands);
+    }
+    return ref;
   }
 
   Set<_BodyPartRef>? _refsFor(String label) {

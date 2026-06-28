@@ -51,6 +51,7 @@ class AnatomyHeatmap extends StatelessWidget {
     this.views = const [BodyView.front, BodyView.back],
     this.highlights = const [],
     this.colorScheme = BodyHeatmapColorScheme.redLoad,
+    this.handDetailLevel = HandDetailLevel.segments,
     this.onPartTap,
     this.hiddenParts = const {},
     this.showOutline = true,
@@ -70,6 +71,14 @@ class AnatomyHeatmap extends StatelessWidget {
 
   /// Color palette and stroke settings.
   final BodyHeatmapColorScheme colorScheme;
+
+  /// How hands are represented in the full anatomy map.
+  ///
+  /// [HandDetailLevel.segments] preserves child palm/finger rendering and lets
+  /// exact child highlights override a parent [BodyPartSlug.hands] fallback.
+  /// [HandDetailLevel.handsOnly] uses the parent highlight when present, then
+  /// aggregates child hand highlights into the parent region as a fallback.
+  final HandDetailLevel handDetailLevel;
 
   /// Optional tap callback for interactive heatmap use.
   final ValueChanged<BodyPartTap>? onPartTap;
@@ -98,6 +107,7 @@ class AnatomyHeatmap extends StatelessWidget {
             asset: bodySvgAssetFor(gender, effectiveViews[index]),
             highlightIndex: highlightIndex,
             colorScheme: colorScheme,
+            handDetailLevel: handDetailLevel,
             onPartTap: onPartTap,
             hiddenParts: hiddenParts,
             showOutline: showOutline,
@@ -128,6 +138,7 @@ class BodyPartsHeatmap extends AnatomyHeatmap {
     super.views,
     super.highlights,
     super.colorScheme,
+    super.handDetailLevel,
     super.onPartTap,
     super.hiddenParts,
     super.showOutline,
@@ -141,6 +152,7 @@ class _BodyViewHeatmap extends StatelessWidget {
     required this.asset,
     required this.highlightIndex,
     required this.colorScheme,
+    required this.handDetailLevel,
     required this.onPartTap,
     required this.hiddenParts,
     required this.showOutline,
@@ -149,6 +161,7 @@ class _BodyViewHeatmap extends StatelessWidget {
   final BodySvgAsset asset;
   final _HighlightIndex highlightIndex;
   final BodyHeatmapColorScheme colorScheme;
+  final HandDetailLevel handDetailLevel;
   final ValueChanged<BodyPartTap>? onPartTap;
   final Set<BodyPartSlug> hiddenParts;
   final bool showOutline;
@@ -177,6 +190,7 @@ class _BodyViewHeatmap extends StatelessWidget {
                   asset: asset,
                   highlightIndex: highlightIndex,
                   colorScheme: colorScheme,
+                  handDetailLevel: handDetailLevel,
                   hiddenParts: hiddenParts,
                   showOutline: showOutline,
                 ),
@@ -200,7 +214,10 @@ class _BodyViewHeatmap extends StatelessWidget {
       if (hiddenParts.contains(part.slug)) {
         continue;
       }
-      for (final fragment in _fragmentsFor(part).toList().reversed) {
+      for (final fragment in _fragmentsFor(
+        part,
+        handDetailLevel,
+      ).toList().reversed) {
         final path = _PathCache.parse(fragment.pathData);
         if (path.contains(svgPoint)) {
           return BodyPartTap(
@@ -213,6 +230,8 @@ class _BodyViewHeatmap extends StatelessWidget {
               part.slug,
               fragment.side,
               handPart: fragment.handPart,
+              collapseHandChildren:
+                  handDetailLevel == HandDetailLevel.handsOnly,
             ),
           );
         }
@@ -227,6 +246,7 @@ class _BodyHeatmapPainter extends CustomPainter {
     required this.asset,
     required this.highlightIndex,
     required this.colorScheme,
+    required this.handDetailLevel,
     required this.hiddenParts,
     required this.showOutline,
   });
@@ -234,6 +254,7 @@ class _BodyHeatmapPainter extends CustomPainter {
   final BodySvgAsset asset;
   final _HighlightIndex highlightIndex;
   final BodyHeatmapColorScheme colorScheme;
+  final HandDetailLevel handDetailLevel;
   final Set<BodyPartSlug> hiddenParts;
   final bool showOutline;
 
@@ -263,11 +284,12 @@ class _BodyHeatmapPainter extends CustomPainter {
       if (hiddenParts.contains(part.slug)) {
         continue;
       }
-      for (final fragment in _fragmentsFor(part)) {
+      for (final fragment in _fragmentsFor(part, handDetailLevel)) {
         final highlight = highlightIndex.highlightFor(
           part.slug,
           fragment.side,
           handPart: fragment.handPart,
+          collapseHandChildren: handDetailLevel == HandDetailLevel.handsOnly,
         );
         final fillPaint = ui.Paint()
           ..style = ui.PaintingStyle.fill
@@ -295,6 +317,7 @@ class _BodyHeatmapPainter extends CustomPainter {
     return oldDelegate.asset != asset ||
         oldDelegate.highlightIndex != highlightIndex ||
         oldDelegate.colorScheme != colorScheme ||
+        oldDelegate.handDetailLevel != handDetailLevel ||
         oldDelegate.hiddenParts != hiddenParts ||
         oldDelegate.showOutline != showOutline;
   }
@@ -313,18 +336,61 @@ class _HighlightIndex {
     BodyPartSlug slug,
     BodySide pathSide, {
     HandPartSlug? handPart,
+    bool collapseHandChildren = false,
   }) {
     final candidates = _bySlug[slug];
     if (candidates == null || candidates.isEmpty) {
       return null;
     }
 
+    if (slug != BodyPartSlug.hands) {
+      return _strongestMatching(candidates, pathSide, (_) => true);
+    }
+
+    if (collapseHandChildren) {
+      final parent = _strongestMatching(
+        candidates,
+        pathSide,
+        (highlight) => highlight.handPart == null,
+      );
+      if (parent != null) {
+        return parent;
+      }
+
+      final child = _strongestMatching(
+        candidates,
+        pathSide,
+        (highlight) => highlight.handPart != null,
+      );
+      return child == null ? null : _asParentHandHighlight(child);
+    }
+
+    if (handPart != null) {
+      final child = _strongestMatching(
+        candidates,
+        pathSide,
+        (highlight) => _handPartMatches(highlight.handPart, handPart),
+      );
+      if (child != null) {
+        return child;
+      }
+    }
+
+    return _strongestMatching(
+      candidates,
+      pathSide,
+      (highlight) => highlight.handPart == null,
+    );
+  }
+
+  BodyHighlightData? _strongestMatching(
+    List<BodyHighlightData> candidates,
+    BodySide pathSide,
+    bool Function(BodyHighlightData highlight) matches,
+  ) {
     BodyHighlightData? strongest;
     for (final highlight in candidates) {
-      if (!_sideMatches(highlight.side, pathSide)) {
-        continue;
-      }
-      if (!_handPartMatches(slug, highlight.handPart, handPart)) {
+      if (!_sideMatches(highlight.side, pathSide) || !matches(highlight)) {
         continue;
       }
       if (strongest == null ||
@@ -333,6 +399,16 @@ class _HighlightIndex {
       }
     }
     return strongest;
+  }
+
+  BodyHighlightData _asParentHandHighlight(BodyHighlightData highlight) {
+    return BodyHighlightData(
+      slug: highlight.slug,
+      intensity: highlight.intensity,
+      side: highlight.side,
+      color: highlight.color,
+      metric: highlight.metric,
+    );
   }
 
   bool _sideMatches(BodySide highlightSide, BodySide pathSide) {
@@ -345,17 +421,10 @@ class _HighlightIndex {
   }
 
   bool _handPartMatches(
-    BodyPartSlug slug,
     HandPartSlug? highlightHandPart,
-    HandPartSlug? pathHandPart,
+    HandPartSlug pathHandPart,
   ) {
-    if (slug != BodyPartSlug.hands) {
-      return true;
-    }
     if (highlightHandPart == null) {
-      return true;
-    }
-    if (pathHandPart == null) {
       return false;
     }
     if (highlightHandPart == HandPartSlug.wrist) {
@@ -373,8 +442,12 @@ class _PathFragment {
   final HandPartSlug? handPart;
 }
 
-Iterable<_PathFragment> _fragmentsFor(BodyPartSvgData part) sync* {
-  if (part.slug == BodyPartSlug.hands) {
+Iterable<_PathFragment> _fragmentsFor(
+  BodyPartSvgData part,
+  HandDetailLevel handDetailLevel,
+) sync* {
+  if (part.slug == BodyPartSlug.hands &&
+      handDetailLevel == HandDetailLevel.segments) {
     for (final segment in handSvgSegmentsFor(part, BodySide.left)) {
       yield _PathFragment(
         segment.side,
