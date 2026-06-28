@@ -27,7 +27,7 @@ and adds deterministic Frez-style muscle-to-body-part mapping semantics.
 Example app running on an iPhone 17 Pro Max simulator:
 
 <p align="center">
-  <img src="docs/images/anatomy_heatmap_iphone17_pro_max.png" alt="anatomy_heatmap example app running on an iPhone 17 Pro Max simulator" width="360">
+  <img src="doc/images/anatomy_heatmap_iphone17_pro_max.png" alt="anatomy_heatmap example app running on an iPhone 17 Pro Max simulator" width="360">
 </p>
 
 ## Features

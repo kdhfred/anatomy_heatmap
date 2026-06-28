@@ -1,7 +1,9 @@
 name: anatomy_heatmap
 description: Flutter anatomical SVG heatmaps with deterministic muscle mapping semantics.
 version: 0.0.1
-homepage:
+homepage: https://github.com/kdhfred/anatomy_heatmap
+repository: https://github.com/kdhfred/anatomy_heatmap
+issue_tracker: https://github.com/kdhfred/anatomy_heatmap/issues
 
 environment:
   sdk: ^3.11.0
