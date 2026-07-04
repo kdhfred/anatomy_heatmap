@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -57,6 +58,8 @@ class AnatomyHeatmap extends StatelessWidget {
     this.showOutline = true,
     this.spacing = 12,
     this.height,
+    this.focusHighlights = false,
+    this.focusPadding = 0.35,
   });
 
   /// Gender variant to render.
@@ -95,6 +98,16 @@ class AnatomyHeatmap extends StatelessWidget {
   /// Optional fixed widget height. If null, parent constraints determine size.
   final double? height;
 
+  /// Whether each rendered view should zoom to the bounds of active highlights.
+  ///
+  /// When no active highlight can be resolved for a view, the original SVG
+  /// viewBox is used.
+  final bool focusHighlights;
+
+  /// Padding around the resolved highlight bounds as a fraction of the larger
+  /// highlight-bounds side.
+  final double focusPadding;
+
   @override
   Widget build(BuildContext context) {
     final effectiveViews = views.isEmpty ? const [BodyView.front] : views;
@@ -111,6 +124,8 @@ class AnatomyHeatmap extends StatelessWidget {
             onPartTap: onPartTap,
             hiddenParts: hiddenParts,
             showOutline: showOutline,
+            focusHighlights: focusHighlights,
+            focusPadding: focusPadding,
           ),
         ),
       ],
@@ -144,6 +159,8 @@ class BodyPartsHeatmap extends AnatomyHeatmap {
     super.showOutline,
     super.spacing,
     super.height,
+    super.focusHighlights,
+    super.focusPadding,
   });
 }
 
@@ -156,6 +173,8 @@ class _BodyViewHeatmap extends StatelessWidget {
     required this.onPartTap,
     required this.hiddenParts,
     required this.showOutline,
+    required this.focusHighlights,
+    required this.focusPadding,
   });
 
   final BodySvgAsset asset;
@@ -165,6 +184,8 @@ class _BodyViewHeatmap extends StatelessWidget {
   final ValueChanged<BodyPartTap>? onPartTap;
   final Set<BodyPartSlug> hiddenParts;
   final bool showOutline;
+  final bool focusHighlights;
+  final double focusPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -173,12 +194,25 @@ class _BodyViewHeatmap extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = ui.Size(constraints.maxWidth, constraints.maxHeight);
+          final effectiveViewBox = focusHighlights
+              ? _highlightFocusViewBox(
+                  asset: asset,
+                  highlightIndex: highlightIndex,
+                  handDetailLevel: handDetailLevel,
+                  hiddenParts: hiddenParts,
+                  paddingFraction: focusPadding,
+                )
+              : asset.viewBox;
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapUp: onPartTap == null
                 ? null
                 : (details) {
-                    final tap = _hitTest(details.localPosition, size);
+                    final tap = _hitTest(
+                      details.localPosition,
+                      size,
+                      effectiveViewBox,
+                    );
                     if (tap != null) {
                       onPartTap!(tap);
                     }
@@ -193,6 +227,7 @@ class _BodyViewHeatmap extends StatelessWidget {
                   handDetailLevel: handDetailLevel,
                   hiddenParts: hiddenParts,
                   showOutline: showOutline,
+                  viewBox: effectiveViewBox,
                 ),
                 child: const SizedBox.expand(),
               ),
@@ -203,11 +238,15 @@ class _BodyViewHeatmap extends StatelessWidget {
     );
   }
 
-  BodyPartTap? _hitTest(ui.Offset localPosition, ui.Size size) {
+  BodyPartTap? _hitTest(
+    ui.Offset localPosition,
+    ui.Size size,
+    ui.Rect viewBox,
+  ) {
     if (size.isEmpty) {
       return null;
     }
-    final transform = _ViewTransform.from(asset.viewBox, size);
+    final transform = _ViewTransform.from(viewBox, size);
     final svgPoint = transform.toSvg(localPosition);
 
     for (final part in asset.parts.reversed) {
@@ -249,6 +288,7 @@ class _BodyHeatmapPainter extends CustomPainter {
     required this.handDetailLevel,
     required this.hiddenParts,
     required this.showOutline,
+    required this.viewBox,
   });
 
   final BodySvgAsset asset;
@@ -257,6 +297,7 @@ class _BodyHeatmapPainter extends CustomPainter {
   final HandDetailLevel handDetailLevel;
   final Set<BodyPartSlug> hiddenParts;
   final bool showOutline;
+  final ui.Rect viewBox;
 
   @override
   void paint(ui.Canvas canvas, ui.Size size) {
@@ -264,11 +305,11 @@ class _BodyHeatmapPainter extends CustomPainter {
       return;
     }
 
-    final transform = _ViewTransform.from(asset.viewBox, size);
+    final transform = _ViewTransform.from(viewBox, size);
     canvas.save();
     canvas.translate(transform.dx, transform.dy);
     canvas.scale(transform.scale);
-    canvas.translate(-asset.viewBox.left, -asset.viewBox.top);
+    canvas.translate(-viewBox.left, -viewBox.top);
 
     if (showOutline && asset.outlinePath != null) {
       final outlinePaint = ui.Paint()
@@ -319,8 +360,64 @@ class _BodyHeatmapPainter extends CustomPainter {
         oldDelegate.colorScheme != colorScheme ||
         oldDelegate.handDetailLevel != handDetailLevel ||
         oldDelegate.hiddenParts != hiddenParts ||
-        oldDelegate.showOutline != showOutline;
+        oldDelegate.showOutline != showOutline ||
+        oldDelegate.viewBox != viewBox;
   }
+}
+
+ui.Rect _highlightFocusViewBox({
+  required BodySvgAsset asset,
+  required _HighlightIndex highlightIndex,
+  required HandDetailLevel handDetailLevel,
+  required Set<BodyPartSlug> hiddenParts,
+  required double paddingFraction,
+}) {
+  ui.Rect? bounds;
+  for (final part in asset.parts) {
+    if (hiddenParts.contains(part.slug)) continue;
+    for (final fragment in _fragmentsFor(part, handDetailLevel)) {
+      final highlight = highlightIndex.highlightFor(
+        part.slug,
+        fragment.side,
+        handPart: fragment.handPart,
+        collapseHandChildren: handDetailLevel == HandDetailLevel.handsOnly,
+      );
+      if (highlight == null || highlight.normalizedIntensity <= 0) continue;
+      final pathBounds = _PathCache.parse(fragment.pathData).getBounds();
+      bounds = bounds == null ? pathBounds : bounds.expandToInclude(pathBounds);
+    }
+  }
+  if (bounds == null || bounds.isEmpty) return asset.viewBox;
+  return _paddedFocusRect(bounds, asset.viewBox, paddingFraction);
+}
+
+ui.Rect _paddedFocusRect(
+  ui.Rect bounds,
+  ui.Rect outer,
+  double paddingFraction,
+) {
+  final base = math.max(bounds.width, bounds.height);
+  var rect = bounds.inflate(base * math.max(0, paddingFraction));
+  final minWidth = outer.width * 0.08;
+  final minHeight = outer.height * 0.08;
+  rect = _expandRectToMinSize(rect, minWidth, minHeight);
+  return _constrainRect(rect, outer);
+}
+
+ui.Rect _expandRectToMinSize(ui.Rect rect, double minWidth, double minHeight) {
+  final width = math.max(rect.width, minWidth);
+  final height = math.max(rect.height, minHeight);
+  return ui.Rect.fromCenter(center: rect.center, width: width, height: height);
+}
+
+ui.Rect _constrainRect(ui.Rect rect, ui.Rect outer) {
+  final width = math.min(rect.width, outer.width);
+  final height = math.min(rect.height, outer.height);
+  var left = rect.center.dx - width / 2;
+  var top = rect.center.dy - height / 2;
+  left = left.clamp(outer.left, outer.right - width).toDouble();
+  top = top.clamp(outer.top, outer.bottom - height).toDouble();
+  return ui.Rect.fromLTWH(left, top, width, height);
 }
 
 class _HighlightIndex {

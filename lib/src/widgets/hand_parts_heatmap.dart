@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -28,6 +29,8 @@ class HandPartsHeatmap extends StatelessWidget {
     this.onPartTap,
     this.spacing = 12,
     this.height,
+    this.focusHighlights = false,
+    this.focusPadding = 0.45,
   });
 
   /// Gender variant to render.
@@ -54,6 +57,13 @@ class HandPartsHeatmap extends StatelessWidget {
   /// Optional fixed height.
   final double? height;
 
+  /// Whether each rendered hand should zoom to active hand/finger highlights.
+  final bool focusHighlights;
+
+  /// Padding around focused highlight bounds as a fraction of the larger
+  /// highlight-bounds side.
+  final double focusPadding;
+
   @override
   Widget build(BuildContext context) {
     final effectiveViews = views.isEmpty ? const [BodyView.front] : views;
@@ -68,6 +78,8 @@ class HandPartsHeatmap extends StatelessWidget {
             highlightIndex: highlightIndex,
             colorScheme: colorScheme,
             onPartTap: onPartTap,
+            focusHighlights: focusHighlights,
+            focusPadding: focusPadding,
           ),
     ];
 
@@ -121,6 +133,8 @@ class _HandViewHeatmap extends StatelessWidget {
     required this.highlightIndex,
     required this.colorScheme,
     required this.onPartTap,
+    required this.focusHighlights,
+    required this.focusPadding,
   });
 
   final BodySvgAsset asset;
@@ -128,6 +142,8 @@ class _HandViewHeatmap extends StatelessWidget {
   final _HandHighlightIndex highlightIndex;
   final BodyHeatmapColorScheme colorScheme;
   final ValueChanged<HandPartTap>? onPartTap;
+  final bool focusHighlights;
+  final double focusPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +151,15 @@ class _HandViewHeatmap extends StatelessWidget {
       (part) => part.slug == BodyPartSlug.hands,
     );
     final segments = handSvgSegmentsFor(hand, side);
-    final viewBox = paddedHandBoundsFor(segments);
+    final fullViewBox = paddedHandBoundsFor(segments);
+    final viewBox = focusHighlights
+        ? _highlightFocusViewBox(
+            segments: segments,
+            highlightIndex: highlightIndex,
+            fullViewBox: fullViewBox,
+            paddingFraction: focusPadding,
+          )
+        : fullViewBox;
 
     return AspectRatio(
       aspectRatio: viewBox.width / viewBox.height,
@@ -262,6 +286,52 @@ class _HandHeatmapPainter extends CustomPainter {
         oldDelegate.highlightIndex != highlightIndex ||
         oldDelegate.colorScheme != colorScheme;
   }
+}
+
+ui.Rect _highlightFocusViewBox({
+  required List<HandSvgSegment> segments,
+  required _HandHighlightIndex highlightIndex,
+  required ui.Rect fullViewBox,
+  required double paddingFraction,
+}) {
+  ui.Rect? bounds;
+  for (final segment in segments) {
+    final highlight = highlightIndex.highlightFor(segment.slug, segment.side);
+    if (highlight == null || highlight.normalizedIntensity <= 0) continue;
+    final pathBounds = _PathCache.parse(segment.pathData).getBounds();
+    bounds = bounds == null ? pathBounds : bounds.expandToInclude(pathBounds);
+  }
+  if (bounds == null || bounds.isEmpty) return fullViewBox;
+  return _paddedFocusRect(bounds, fullViewBox, paddingFraction);
+}
+
+ui.Rect _paddedFocusRect(
+  ui.Rect bounds,
+  ui.Rect outer,
+  double paddingFraction,
+) {
+  final base = math.max(bounds.width, bounds.height);
+  var rect = bounds.inflate(base * math.max(0, paddingFraction));
+  final minWidth = outer.width * 0.14;
+  final minHeight = outer.height * 0.14;
+  rect = _expandRectToMinSize(rect, minWidth, minHeight);
+  return _constrainRect(rect, outer);
+}
+
+ui.Rect _expandRectToMinSize(ui.Rect rect, double minWidth, double minHeight) {
+  final width = math.max(rect.width, minWidth);
+  final height = math.max(rect.height, minHeight);
+  return ui.Rect.fromCenter(center: rect.center, width: width, height: height);
+}
+
+ui.Rect _constrainRect(ui.Rect rect, ui.Rect outer) {
+  final width = math.min(rect.width, outer.width);
+  final height = math.min(rect.height, outer.height);
+  var left = rect.center.dx - width / 2;
+  var top = rect.center.dy - height / 2;
+  left = left.clamp(outer.left, outer.right - width).toDouble();
+  top = top.clamp(outer.top, outer.bottom - height).toDouble();
+  return ui.Rect.fromLTWH(left, top, width, height);
 }
 
 class _HandHighlightIndex {
