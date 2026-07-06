@@ -60,6 +60,7 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
   final Map<BodyPartSlug, double> _bodyIntensities = {
     BodyPartSlug.chest: 1,
     BodyPartSlug.quadriceps: 0.82,
+    BodyPartSlug.lats: 0.56,
     BodyPartSlug.deltoids: 0.48,
     BodyPartSlug.forearm: 0.62,
   };
@@ -84,6 +85,7 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
     BodyPartSlug.deltoids,
     BodyPartSlug.trapezius,
     BodyPartSlug.upperBack,
+    BodyPartSlug.lats,
     BodyPartSlug.lowerBack,
     BodyPartSlug.gluteal,
     BodyPartSlug.hamstring,

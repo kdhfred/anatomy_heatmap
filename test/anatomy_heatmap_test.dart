@@ -9,6 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_drawing/path_drawing.dart';
 
 void main() {
+  group('BodyPartSlug', () {
+    test('exposes lats as a stable public slug', () {
+      expect(BodyPartSlug.lats.upstreamSlug, 'lats');
+      expect(BodyPartSlug.lats.label, 'Lats');
+      expect(bodyPartSlugFromUpstream('lats'), BodyPartSlug.lats);
+    });
+  });
+
   group('MuscleToBodyPartAdapter', () {
     test('maps seeded aliases correctly', () {
       final adapter = MuscleToBodyPartAdapter();
@@ -19,13 +27,33 @@ void main() {
       );
 
       expect(result.primary, contains(BodyPartSlug.chest));
-      expect(result.primary, contains(BodyPartSlug.upperBack));
+      expect(result.primary, contains(BodyPartSlug.lats));
       expect(result.primary, contains(BodyPartSlug.forearm));
       expect(result.primary, contains(BodyPartSlug.hands));
       expect(result.secondary, contains(BodyPartSlug.deltoids));
       expect(result.secondary, contains(BodyPartSlug.calves));
       expect(result.secondary, contains(BodyPartSlug.obliques));
       expect(result.unmapped, isEmpty);
+    });
+
+    test('maps back aliases to split taxonomy', () {
+      final adapter = MuscleToBodyPartAdapter();
+
+      final lats = adapter.mapPrimarySecondary(
+        primaryMuscles: ['Latissimus', 'Latissimus Dorsi', 'Lats'],
+        secondaryMuscles: const [],
+      );
+      expect(lats.primary, {BodyPartSlug.lats});
+
+      final back = adapter.mapPrimarySecondary(
+        primaryMuscles: ['Rhomboids', 'Erector Spinae', 'Traps'],
+        secondaryMuscles: const [],
+      );
+      expect(back.primary, {
+        BodyPartSlug.upperBack,
+        BodyPartSlug.lowerBack,
+        BodyPartSlug.trapezius,
+      });
     });
 
     test('primary wins over secondary on overlap', () {
@@ -350,6 +378,50 @@ void main() {
         }
       }
     });
+
+    test('back taxonomy splits lats and merges back neck into trapezius', () {
+      for (final gender in BodyGender.values) {
+        final front = bodySvgAssetFor(gender, BodyView.front);
+        final back = bodySvgAssetFor(gender, BodyView.back);
+
+        expect(
+          front.parts.map((part) => part.slug),
+          contains(BodyPartSlug.neck),
+        );
+        expect(
+          back.parts.map((part) => part.slug),
+          isNot(contains(BodyPartSlug.neck)),
+        );
+
+        final lats = back.parts.singleWhere(
+          (part) => part.slug == BodyPartSlug.lats,
+        );
+        expect(lats.common, isEmpty);
+        expect(lats.left, hasLength(1));
+        expect(lats.right, hasLength(1));
+
+        final trapezius = back.parts.singleWhere(
+          (part) => part.slug == BodyPartSlug.trapezius,
+        );
+        expect(trapezius.common, isEmpty);
+        expect(trapezius.left, hasLength(2));
+        expect(trapezius.right, hasLength(2));
+
+        final upperBack = back.parts.singleWhere(
+          (part) => part.slug == BodyPartSlug.upperBack,
+        );
+        expect(upperBack.common, isEmpty);
+        expect(upperBack.left, hasLength(gender == BodyGender.male ? 2 : 1));
+        expect(upperBack.right, hasLength(gender == BodyGender.male ? 2 : 1));
+
+        final lowerBack = back.parts.singleWhere(
+          (part) => part.slug == BodyPartSlug.lowerBack,
+        );
+        expect(lowerBack.common, isEmpty);
+        expect(lowerBack.left, hasLength(2));
+        expect(lowerBack.right, hasLength(2));
+      }
+    });
   });
 
   testWidgets('widget smoke test renders front/back with a highlight', (
@@ -366,6 +438,7 @@ void main() {
             views: [BodyView.front, BodyView.back],
             highlights: [
               BodyHighlightData(slug: BodyPartSlug.chest, intensity: 0.8),
+              BodyHighlightData(slug: BodyPartSlug.lats, intensity: 0.6),
               BodyHighlightData(slug: BodyPartSlug.upperBack, intensity: 0.45),
             ],
           ),

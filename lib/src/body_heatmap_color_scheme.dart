@@ -141,6 +141,7 @@ class BodyHeatmapColorScheme {
     BodyPartSlug.deltoids: Color(0xFFAB47BC),
     BodyPartSlug.trapezius: Color(0xFF7E57C2),
     BodyPartSlug.upperBack: Color(0xFF5E35B1),
+    BodyPartSlug.lats: Color(0xFF3949AB),
     BodyPartSlug.lowerBack: Color(0xFF8E24AA),
     BodyPartSlug.gluteal: Color(0xFFEC407A),
     BodyPartSlug.hamstring: Color(0xFF66BB6A),

@@ -31,6 +31,7 @@ enum BodyPartSlug {
   deltoids,
   trapezius,
   upperBack,
+  lats,
   lowerBack,
   gluteal,
   hamstring,
@@ -51,6 +52,7 @@ extension BodyPartSlugX on BodyPartSlug {
   /// The upstream/react-native SVG slug spelling.
   String get upstreamSlug => switch (this) {
     BodyPartSlug.upperBack => 'upper-back',
+    BodyPartSlug.lats => 'lats',
     BodyPartSlug.lowerBack => 'lower-back',
     BodyPartSlug.chest => 'chest',
     BodyPartSlug.abs => 'abs',
@@ -78,6 +80,7 @@ extension BodyPartSlugX on BodyPartSlug {
   /// A simple human-readable label.
   String get label => switch (this) {
     BodyPartSlug.upperBack => 'Upper back',
+    BodyPartSlug.lats => 'Lats',
     BodyPartSlug.lowerBack => 'Lower back',
     BodyPartSlug.abs => 'Abs',
     _ => name[0].toUpperCase() + name.substring(1),
@@ -96,6 +99,7 @@ BodyPartSlug bodyPartSlugFromUpstream(String slug) => switch (slug) {
   'deltoids' => BodyPartSlug.deltoids,
   'trapezius' => BodyPartSlug.trapezius,
   'upper-back' => BodyPartSlug.upperBack,
+  'lats' => BodyPartSlug.lats,
   'lower-back' => BodyPartSlug.lowerBack,
   'gluteal' => BodyPartSlug.gluteal,
   'hamstring' => BodyPartSlug.hamstring,

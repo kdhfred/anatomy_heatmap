@@ -33,6 +33,7 @@ DART_SLUGS = {
     "deltoids": "BodyPartSlug.deltoids",
     "trapezius": "BodyPartSlug.trapezius",
     "upper-back": "BodyPartSlug.upperBack",
+    "lats": "BodyPartSlug.lats",
     "lower-back": "BodyPartSlug.lowerBack",
     "gluteal": "BodyPartSlug.gluteal",
     "hamstring": "BodyPartSlug.hamstring",
@@ -135,6 +136,67 @@ def parse_parts(asset_file: pathlib.Path) -> list[dict[str, object]]:
     return parts
 
 
+def clone_part(part: dict[str, object]) -> dict[str, object]:
+    return {
+        "slug": part["slug"],
+        "common": list(part["common"]),
+        "left": list(part["left"]),
+        "right": list(part["right"]),
+    }
+
+
+def find_part(parts: list[dict[str, object]], slug: str) -> dict[str, object]:
+    for part in parts:
+        if part["slug"] == slug:
+            return part
+    raise ValueError(f"Missing expected slug {slug!r}")
+
+
+def apply_taxonomy_overrides(
+    gender: str,
+    view: str,
+    parts: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Apply repo-local taxonomy splits on top of upstream path assets.
+
+    Upstream groups latissimus-dorsi geometry into ``upper-back`` and exposes a
+    separate ``neck`` part on the back view. This package presents lats as a
+    first-class slug and treats the back-view neck/traps mass as trapezius,
+    while preserving the front-view neck taxonomy.
+    """
+
+    result = [clone_part(part) for part in parts]
+    if view != "back":
+        return result
+
+    neck = next((part for part in result if part["slug"] == "neck"), None)
+    if neck is not None:
+        trapezius = find_part(result, "trapezius")
+        for side in ("common", "left", "right"):
+            trapezius[side] = [*trapezius[side], *neck[side]]
+        result.remove(neck)
+
+    lats_indices = {
+        ("male", "back"): {"left": {1}, "right": {2}},
+        ("female", "back"): {"left": {1}, "right": {1}},
+    }[(gender, view)]
+    upper_back = find_part(result, "upper-back")
+    lats = {"slug": "lats", "common": [], "left": [], "right": []}
+    for side in ("left", "right"):
+        paths = list(upper_back[side])
+        moved_indices = lats_indices[side]
+        lats[side] = [
+            path for index, path in enumerate(paths) if index in moved_indices
+        ]
+        upper_back[side] = [
+            path for index, path in enumerate(paths) if index not in moved_indices
+        ]
+
+    upper_back_index = result.index(upper_back)
+    result.insert(upper_back_index + 1, lats)
+    return result
+
+
 def extract_wrapper_paths(upstream: pathlib.Path) -> dict[tuple[str, str], str]:
     result: dict[tuple[str, str], str] = {}
     for gender, wrapper_name in [
@@ -195,7 +257,12 @@ def main() -> int:
             f"    outlinePath: {dart_string(outline_paths[(gender, view)])},",
             "    parts: [",
         ]
-        for part in parse_parts(upstream / "assets" / asset_name):
+        parts = apply_taxonomy_overrides(
+            gender,
+            view,
+            parse_parts(upstream / "assets" / asset_name),
+        )
+        for part in parts:
             lines += [
                 "      BodyPartSvgData(",
                 f"        slug: {DART_SLUGS[part['slug']]},",
