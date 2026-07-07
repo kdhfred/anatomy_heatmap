@@ -16,6 +16,12 @@ void main() {
       expect(BodyPartSlug.lats.label, 'Lats');
       expect(bodyPartSlugFromUpstream('lats'), BodyPartSlug.lats);
     });
+
+    test('exposes abductors as a stable public slug', () {
+      expect(BodyPartSlug.abductors.upstreamSlug, 'abductors');
+      expect(BodyPartSlug.abductors.label, 'Abductors');
+      expect(bodyPartSlugFromUpstream('abductors'), BodyPartSlug.abductors);
+    });
   });
 
   group('MuscleToBodyPartAdapter', () {
@@ -69,6 +75,36 @@ void main() {
         secondaryMuscles: const [],
       );
       expect(back.primary, {BodyPartSlug.upperBack, BodyPartSlug.lowerBack});
+    });
+
+    test('maps gluteal, abductor, and adductor aliases distinctly', () {
+      final adapter = MuscleToBodyPartAdapter();
+
+      final abductors = adapter.mapPrimarySecondary(
+        primaryMuscles: const [
+          'Abductor',
+          'Abductors',
+          'Hip Abductors',
+          'Gluteus Medius',
+          'Gluteus Minimus',
+          'Tensor Fasciae Latae',
+          'TFL',
+        ],
+        secondaryMuscles: const [],
+      );
+      expect(abductors.primary, {BodyPartSlug.abductors});
+
+      final gluteal = adapter.mapPrimarySecondary(
+        primaryMuscles: const ['Glutes', 'Gluteus', 'Gluteus Maximus'],
+        secondaryMuscles: const [],
+      );
+      expect(gluteal.primary, {BodyPartSlug.gluteal});
+
+      final adductors = adapter.mapPrimarySecondary(
+        primaryMuscles: const ['Adductor', 'Adductors'],
+        secondaryMuscles: const [],
+      );
+      expect(adductors.primary, {BodyPartSlug.adductors});
     });
 
     test('primary wins over secondary on overlap', () {
@@ -215,6 +251,7 @@ void main() {
       expect(quads.a, closeTo(0.92, 0.01));
       expect(index.a, closeTo(0.92, 0.01));
       expect(palm.a, closeTo(0.92, 0.01));
+      expect(scheme.bodyPartHeatColors[BodyPartSlug.abductors], isNotNull);
     });
 
     test('muscle group preset has light and dark brightness variants', () {
@@ -441,6 +478,35 @@ void main() {
         expect(lowerBack.right, hasLength(2));
       }
     });
+
+    test(
+      'back taxonomy splits abductors out of gluteal only on back views',
+      () {
+        for (final gender in BodyGender.values) {
+          final front = bodySvgAssetFor(gender, BodyView.front);
+          final back = bodySvgAssetFor(gender, BodyView.back);
+
+          expect(
+            front.parts.map((part) => part.slug),
+            isNot(contains(BodyPartSlug.abductors)),
+          );
+
+          final abductors = back.parts.singleWhere(
+            (part) => part.slug == BodyPartSlug.abductors,
+          );
+          expect(abductors.common, isEmpty);
+          expect(abductors.left, hasLength(1));
+          expect(abductors.right, hasLength(1));
+
+          final gluteal = back.parts.singleWhere(
+            (part) => part.slug == BodyPartSlug.gluteal,
+          );
+          expect(gluteal.common, isEmpty);
+          expect(gluteal.left, hasLength(1));
+          expect(gluteal.right, hasLength(1));
+        }
+      },
+    );
   });
 
   testWidgets(

@@ -154,6 +154,7 @@ class BodyHeatmapColorScheme {
     BodyPartSlug.feet: Color(0xFF8D6E63),
     BodyPartSlug.ankles: Color(0xFFA1887F),
     BodyPartSlug.knees: Color(0xFF689F38),
+    BodyPartSlug.abductors: Color(0xFFF06292),
   };
 
   static const Map<HandPartSlug, Color> _muscleGroupHandPartHeatColors = {

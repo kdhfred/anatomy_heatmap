@@ -182,7 +182,10 @@ sets, primary wins. Unknown labels are returned in `unmapped` so product tests
 can detect missing taxonomy coverage. Back labels are split so `Latissimus`,
 `Latissimus Dorsi`, and `Lats` map to `lats`, while `Rhomboids` remains
 `upperBack`, `Trapezius`/`Traps` are folded into `upperBack` without neck, and
-`Erector Spinae` remains `lowerBack`. Specific hand labels such as `Thumb`,
+`Erector Spinae` remains `lowerBack`. Hip-abductor labels such as
+`Gluteus Medius`, `Gluteus Minimus`, `Tensor Fasciae Latae`, and `TFL` map to
+`abductors`; `Gluteus Maximus` stays `gluteal`, and `Adductors` stays separate.
+Specific hand labels such as `Thumb`,
 `Index Finger`, `Middle Finger`, `Ring Finger`, `Pinky`, and `Palm` are emitted
 as `BodyPartSlug.hands` highlights with `handPart` populated, so the full
 `AnatomyHeatmap` can color exact child regions instead of collapsing them to the

@@ -45,6 +45,7 @@ enum BodyPartSlug {
   ankles,
   knees,
   hair,
+  abductors,
 }
 
 /// Convenience helpers for stable body-part slug conversion.
@@ -75,6 +76,7 @@ extension BodyPartSlugX on BodyPartSlug {
     BodyPartSlug.ankles => 'ankles',
     BodyPartSlug.knees => 'knees',
     BodyPartSlug.hair => 'hair',
+    BodyPartSlug.abductors => 'abductors',
   };
 
   /// A simple human-readable label.
@@ -83,6 +85,7 @@ extension BodyPartSlugX on BodyPartSlug {
     BodyPartSlug.lats => 'Lats',
     BodyPartSlug.lowerBack => 'Lower back',
     BodyPartSlug.abs => 'Abs',
+    BodyPartSlug.abductors => 'Abductors',
     _ => name[0].toUpperCase() + name.substring(1),
   };
 }
@@ -113,5 +116,6 @@ BodyPartSlug bodyPartSlugFromUpstream(String slug) => switch (slug) {
   'ankles' => BodyPartSlug.ankles,
   'knees' => BodyPartSlug.knees,
   'hair' => BodyPartSlug.hair,
+  'abductors' => BodyPartSlug.abductors,
   _ => throw ArgumentError.value(slug, 'slug', 'Unknown body-part slug'),
 };

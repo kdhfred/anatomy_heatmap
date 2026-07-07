@@ -36,6 +36,7 @@ DART_SLUGS = {
     "lats": "BodyPartSlug.lats",
     "lower-back": "BodyPartSlug.lowerBack",
     "gluteal": "BodyPartSlug.gluteal",
+    "abductors": "BodyPartSlug.abductors",
     "hamstring": "BodyPartSlug.hamstring",
     "quadriceps": "BodyPartSlug.quadriceps",
     "calves": "BodyPartSlug.calves",
@@ -161,10 +162,11 @@ def apply_taxonomy_overrides(
 
     Upstream groups latissimus-dorsi geometry into ``upper-back`` and exposes
     upper traps as a separate ``trapezius`` part plus rear-neck geometry as
-    ``neck``. This package presents lats as a first-class slug and treats the
-    back-view rear-neck and upper-traps geometry as ``trapezius``. The broader
-    ``upperBack`` compound behavior is resolved by the renderer rather than by
-    duplicating stored SVG geometry.
+    ``neck``. It also groups the upper/lateral gluteal fragments with the main
+    gluteal region. This package presents lats and hip abductors as first-class
+    slugs and treats the back-view rear-neck and upper-traps geometry as
+    ``trapezius``. The broader ``upperBack`` compound behavior is resolved by
+    the renderer rather than by duplicating stored SVG geometry.
     """
 
     result = [clone_part(part) for part in parts]
@@ -174,6 +176,10 @@ def apply_taxonomy_overrides(
     lats_indices = {
         ("male", "back"): {"left": {1}, "right": {2}},
         ("female", "back"): {"left": {1}, "right": {1}},
+    }[(gender, view)]
+    abductor_indices = {
+        ("male", "back"): {"left": {0}, "right": {0}},
+        ("female", "back"): {"left": {0}, "right": {1}},
     }[(gender, view)]
     neck = find_part(result, "neck")
     trapezius = find_part(result, "trapezius")
@@ -196,6 +202,21 @@ def apply_taxonomy_overrides(
 
     upper_back_index = result.index(upper_back)
     result.insert(upper_back_index + 1, lats)
+
+    gluteal = find_part(result, "gluteal")
+    abductors = {"slug": "abductors", "common": [], "left": [], "right": []}
+    for side in ("left", "right"):
+        paths = list(gluteal[side])
+        moved_indices = abductor_indices[side]
+        abductors[side] = [
+            path for index, path in enumerate(paths) if index in moved_indices
+        ]
+        gluteal[side] = [
+            path for index, path in enumerate(paths) if index not in moved_indices
+        ]
+
+    gluteal_index = result.index(gluteal)
+    result.insert(gluteal_index + 1, abductors)
     return result
 
 
