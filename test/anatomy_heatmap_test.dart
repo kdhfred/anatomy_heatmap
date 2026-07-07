@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:anatomy_heatmap/anatomy_heatmap.dart';
+import 'package:anatomy_heatmap/src/data/body_svg_asset.dart';
 import 'package:anatomy_heatmap/src/data/body_svg_assets.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,10 +47,22 @@ void main() {
       expect(lats.primary, {BodyPartSlug.lats});
 
       final traps = adapter.mapPrimarySecondary(
-        primaryMuscles: ['Trapezius', 'Traps', 'Scapular stabilizers'],
+        primaryMuscles: ['Trapezius', 'Traps'],
         secondaryMuscles: const [],
       );
-      expect(traps.primary, {BodyPartSlug.upperBack});
+      expect(traps.primary, {BodyPartSlug.trapezius});
+
+      final scapularStabilizers = adapter.mapPrimarySecondary(
+        primaryMuscles: [
+          'Scapular stabilizers',
+          'Scapular stabilisers',
+          'Rhomboids',
+          'Upper Back',
+          'Teres',
+        ],
+        secondaryMuscles: const [],
+      );
+      expect(scapularStabilizers.primary, {BodyPartSlug.upperBack});
 
       final back = adapter.mapPrimarySecondary(
         primaryMuscles: ['Rhomboids', 'Erector Spinae'],
@@ -381,7 +394,7 @@ void main() {
       }
     });
 
-    test('back taxonomy splits lats and folds traps into upper back', () {
+    test('back taxonomy exposes traps and keeps lats split out', () {
       for (final gender in BodyGender.values) {
         final front = bodySvgAssetFor(gender, BodyView.front);
         final back = bodySvgAssetFor(gender, BodyView.back);
@@ -392,11 +405,11 @@ void main() {
         );
         expect(
           back.parts.map((part) => part.slug),
-          contains(BodyPartSlug.neck),
+          contains(BodyPartSlug.trapezius),
         );
         expect(
           back.parts.map((part) => part.slug),
-          isNot(contains(BodyPartSlug.trapezius)),
+          isNot(contains(BodyPartSlug.neck)),
         );
 
         final lats = back.parts.singleWhere(
@@ -406,19 +419,19 @@ void main() {
         expect(lats.left, hasLength(1));
         expect(lats.right, hasLength(1));
 
-        final neck = back.parts.singleWhere(
-          (part) => part.slug == BodyPartSlug.neck,
+        final trapezius = back.parts.singleWhere(
+          (part) => part.slug == BodyPartSlug.trapezius,
         );
-        expect(neck.common, isEmpty);
-        expect(neck.left, hasLength(1));
-        expect(neck.right, hasLength(1));
+        expect(trapezius.common, isEmpty);
+        expect(trapezius.left, hasLength(2));
+        expect(trapezius.right, hasLength(2));
 
         final upperBack = back.parts.singleWhere(
           (part) => part.slug == BodyPartSlug.upperBack,
         );
         expect(upperBack.common, isEmpty);
-        expect(upperBack.left, hasLength(gender == BodyGender.male ? 3 : 2));
-        expect(upperBack.right, hasLength(gender == BodyGender.male ? 3 : 2));
+        expect(upperBack.left, hasLength(gender == BodyGender.male ? 2 : 1));
+        expect(upperBack.right, hasLength(gender == BodyGender.male ? 2 : 1));
 
         final lowerBack = back.parts.singleWhere(
           (part) => part.slug == BodyPartSlug.lowerBack,
@@ -429,6 +442,82 @@ void main() {
       }
     });
   });
+
+  testWidgets(
+    'back renderer resolves upperBack as scapular stabilizers plus trapezius',
+    (tester) async {
+      final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
+      final upperBack = asset.parts.singleWhere(
+        (part) => part.slug == BodyPartSlug.upperBack,
+      );
+      final trapezius = asset.parts.singleWhere(
+        (part) => part.slug == BodyPartSlug.trapezius,
+      );
+
+      final taps = await _tapBackHeatmap(
+        tester,
+        highlights: const [
+          BodyHighlightData(slug: BodyPartSlug.upperBack, intensity: 1),
+        ],
+        svgPoints: [
+          _pathInteriorPoint(upperBack.left.first),
+          _pathInteriorPoint(trapezius.left.first),
+          _pathInteriorPoint(trapezius.left.last),
+        ],
+      );
+
+      expect(taps, hasLength(3));
+      expect(taps[0].slug, BodyPartSlug.upperBack);
+      expect(taps[0].highlight?.slug, BodyPartSlug.upperBack);
+      expect(taps[1].slug, BodyPartSlug.trapezius);
+      expect(taps[1].highlight?.slug, BodyPartSlug.upperBack);
+      expect(taps[2].slug, BodyPartSlug.trapezius);
+      expect(taps[2].highlight?.slug, BodyPartSlug.upperBack);
+    },
+  );
+
+  testWidgets(
+    'back trapezius highlight takes priority over compound upperBack',
+    (tester) async {
+      final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
+      final upperBack = asset.parts.singleWhere(
+        (part) => part.slug == BodyPartSlug.upperBack,
+      );
+      final trapezius = asset.parts.singleWhere(
+        (part) => part.slug == BodyPartSlug.trapezius,
+      );
+
+      const upperBackColor = Color(0xFF00A060);
+      const trapeziusColor = Color(0xFF7E22CE);
+      final taps = await _tapBackHeatmap(
+        tester,
+        highlights: const [
+          BodyHighlightData(
+            slug: BodyPartSlug.upperBack,
+            intensity: 1,
+            color: upperBackColor,
+          ),
+          BodyHighlightData(
+            slug: BodyPartSlug.trapezius,
+            intensity: 1,
+            color: trapeziusColor,
+          ),
+        ],
+        svgPoints: [
+          _pathInteriorPoint(upperBack.left.first),
+          _pathInteriorPoint(trapezius.left.last),
+        ],
+      );
+
+      expect(taps, hasLength(2));
+      expect(taps[0].slug, BodyPartSlug.upperBack);
+      expect(taps[0].highlight?.slug, BodyPartSlug.upperBack);
+      expect(taps[0].highlight?.color, upperBackColor);
+      expect(taps[1].slug, BodyPartSlug.trapezius);
+      expect(taps[1].highlight?.slug, BodyPartSlug.trapezius);
+      expect(taps[1].highlight?.color, trapeziusColor);
+    },
+  );
 
   testWidgets('widget smoke test renders front/back with a highlight', (
     tester,
@@ -752,4 +841,77 @@ void main() {
     expect(notice, contains('react-native-body-highlighter'));
     expect(notice, contains('MIT License'));
   });
+}
+
+Future<List<BodyPartTap>> _tapBackHeatmap(
+  WidgetTester tester, {
+  required List<BodyHighlightData> highlights,
+  required List<ui.Offset> svgPoints,
+}) async {
+  final taps = <BodyPartTap>[];
+  await tester.pumpWidget(
+    Directionality(
+      textDirection: TextDirection.ltr,
+      child: SizedBox(
+        width: 362,
+        height: 724,
+        child: AnatomyHeatmap(
+          gender: BodyGender.male,
+          views: const [BodyView.back],
+          highlights: highlights,
+          showOutline: false,
+          onPartTap: taps.add,
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+
+  final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
+  final paintFinder = find.byType(CustomPaint).first;
+  final topLeft = tester.getTopLeft(paintFinder);
+  final size = tester.getSize(paintFinder);
+  for (final svgPoint in svgPoints) {
+    await tester.tapAt(_toGlobal(asset, size, topLeft, svgPoint));
+    await tester.pump();
+  }
+  return taps;
+}
+
+ui.Offset _pathInteriorPoint(String pathData) {
+  final path = parseSvgPathData(pathData);
+  final bounds = path.getBounds();
+  for (final divisions in const [9, 17, 33]) {
+    for (var yIndex = 1; yIndex < divisions; yIndex++) {
+      for (var xIndex = 1; xIndex < divisions; xIndex++) {
+        final candidate = ui.Offset(
+          bounds.left + bounds.width * xIndex / divisions,
+          bounds.top + bounds.height * yIndex / divisions,
+        );
+        if (path.contains(candidate)) {
+          return candidate;
+        }
+      }
+    }
+  }
+  return bounds.center;
+}
+
+Offset _toGlobal(
+  BodySvgAsset asset,
+  Size paintSize,
+  Offset topLeft,
+  ui.Offset svgPoint,
+) {
+  final scale = math.min(
+    paintSize.width / asset.viewBox.width,
+    paintSize.height / asset.viewBox.height,
+  );
+  final dx = (paintSize.width - asset.viewBox.width * scale) / 2;
+  final dy = (paintSize.height - asset.viewBox.height * scale) / 2;
+  return topLeft +
+      Offset(
+        dx + (svgPoint.dx - asset.viewBox.left) * scale,
+        dy + (svgPoint.dy - asset.viewBox.top) * scale,
+      );
 }

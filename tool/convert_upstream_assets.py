@@ -160,9 +160,11 @@ def apply_taxonomy_overrides(
     """Apply repo-local taxonomy splits on top of upstream path assets.
 
     Upstream groups latissimus-dorsi geometry into ``upper-back`` and exposes
-    upper traps as a separate ``trapezius`` part. This package presents lats as
-    a first-class slug and treats the back-view traps geometry as part of the
-    broader upper-back region, while keeping neck geometry out of upper-back.
+    upper traps as a separate ``trapezius`` part plus rear-neck geometry as
+    ``neck``. This package presents lats as a first-class slug and treats the
+    back-view rear-neck and upper-traps geometry as ``trapezius``. The broader
+    ``upperBack`` compound behavior is resolved by the renderer rather than by
+    duplicating stored SVG geometry.
     """
 
     result = [clone_part(part) for part in parts]
@@ -173,11 +175,13 @@ def apply_taxonomy_overrides(
         ("male", "back"): {"left": {1}, "right": {2}},
         ("female", "back"): {"left": {1}, "right": {1}},
     }[(gender, view)]
-    upper_back = find_part(result, "upper-back")
+    neck = find_part(result, "neck")
     trapezius = find_part(result, "trapezius")
     for side in ("common", "left", "right"):
-        upper_back[side] = [*upper_back[side], *trapezius[side]]
-    result.remove(trapezius)
+        trapezius[side] = [*neck[side], *trapezius[side]]
+    result.remove(neck)
+
+    upper_back = find_part(result, "upper-back")
 
     lats = {"slug": "lats", "common": [], "left": [], "right": []}
     for side in ("left", "right"):

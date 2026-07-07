@@ -265,12 +265,15 @@ class _BodyViewHeatmap extends StatelessWidget {
             slug: part.slug,
             side: fragment.side,
             handPart: fragment.handPart,
-            highlight: highlightIndex.highlightFor(
-              part.slug,
-              fragment.side,
+            highlight: _highlightForFragment(
+              asset: asset,
+              highlightIndex: highlightIndex,
+              slug: part.slug,
+              pathSide: fragment.side,
               handPart: fragment.handPart,
               collapseHandChildren:
                   handDetailLevel == HandDetailLevel.handsOnly,
+              hiddenParts: hiddenParts,
             ),
           );
         }
@@ -326,15 +329,21 @@ class _BodyHeatmapPainter extends CustomPainter {
         continue;
       }
       for (final fragment in _fragmentsFor(part, handDetailLevel)) {
-        final highlight = highlightIndex.highlightFor(
-          part.slug,
-          fragment.side,
+        final highlight = _highlightForFragment(
+          asset: asset,
+          highlightIndex: highlightIndex,
+          slug: part.slug,
+          pathSide: fragment.side,
           handPart: fragment.handPart,
           collapseHandChildren: handDetailLevel == HandDetailLevel.handsOnly,
+          hiddenParts: hiddenParts,
         );
         final fillPaint = ui.Paint()
           ..style = ui.PaintingStyle.fill
-          ..color = colorScheme.fillFor(highlight, slug: part.slug);
+          ..color = colorScheme.fillFor(
+            highlight,
+            slug: highlight?.slug ?? part.slug,
+          );
         final path = _PathCache.parse(fragment.pathData);
         canvas.drawPath(path, fillPaint);
 
@@ -376,11 +385,14 @@ ui.Rect _highlightFocusViewBox({
   for (final part in asset.parts) {
     if (hiddenParts.contains(part.slug)) continue;
     for (final fragment in _fragmentsFor(part, handDetailLevel)) {
-      final highlight = highlightIndex.highlightFor(
-        part.slug,
-        fragment.side,
+      final highlight = _highlightForFragment(
+        asset: asset,
+        highlightIndex: highlightIndex,
+        slug: part.slug,
+        pathSide: fragment.side,
         handPart: fragment.handPart,
         collapseHandChildren: handDetailLevel == HandDetailLevel.handsOnly,
+        hiddenParts: hiddenParts,
       );
       if (highlight == null || highlight.normalizedIntensity <= 0) continue;
       final pathBounds = _PathCache.parse(fragment.pathData).getBounds();
@@ -389,6 +401,34 @@ ui.Rect _highlightFocusViewBox({
   }
   if (bounds == null || bounds.isEmpty) return asset.viewBox;
   return _paddedFocusRect(bounds, asset.viewBox, paddingFraction);
+}
+
+BodyHighlightData? _highlightForFragment({
+  required BodySvgAsset asset,
+  required _HighlightIndex highlightIndex,
+  required BodyPartSlug slug,
+  required BodySide pathSide,
+  required Set<BodyPartSlug> hiddenParts,
+  HandPartSlug? handPart,
+  bool collapseHandChildren = false,
+}) {
+  final direct = highlightIndex.highlightFor(
+    slug,
+    pathSide,
+    handPart: handPart,
+    collapseHandChildren: collapseHandChildren,
+  );
+  if (direct != null) {
+    return direct;
+  }
+
+  if (asset.view == BodyView.back &&
+      slug == BodyPartSlug.trapezius &&
+      !hiddenParts.contains(BodyPartSlug.upperBack)) {
+    return highlightIndex.highlightFor(BodyPartSlug.upperBack, pathSide);
+  }
+
+  return null;
 }
 
 ui.Rect _paddedFocusRect(
