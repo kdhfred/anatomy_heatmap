@@ -45,15 +45,17 @@ void main() {
       );
       expect(lats.primary, {BodyPartSlug.lats});
 
-      final back = adapter.mapPrimarySecondary(
-        primaryMuscles: ['Rhomboids', 'Erector Spinae', 'Traps'],
+      final traps = adapter.mapPrimarySecondary(
+        primaryMuscles: ['Trapezius', 'Traps', 'Scapular stabilizers'],
         secondaryMuscles: const [],
       );
-      expect(back.primary, {
-        BodyPartSlug.upperBack,
-        BodyPartSlug.lowerBack,
-        BodyPartSlug.trapezius,
-      });
+      expect(traps.primary, {BodyPartSlug.upperBack});
+
+      final back = adapter.mapPrimarySecondary(
+        primaryMuscles: ['Rhomboids', 'Erector Spinae'],
+        secondaryMuscles: const [],
+      );
+      expect(back.primary, {BodyPartSlug.upperBack, BodyPartSlug.lowerBack});
     });
 
     test('primary wins over secondary on overlap', () {
@@ -379,18 +381,22 @@ void main() {
       }
     });
 
-    test('back taxonomy splits lats and merges back neck into trapezius', () {
+    test('back taxonomy splits lats and folds traps into upper back', () {
       for (final gender in BodyGender.values) {
         final front = bodySvgAssetFor(gender, BodyView.front);
         final back = bodySvgAssetFor(gender, BodyView.back);
 
         expect(
           front.parts.map((part) => part.slug),
+          containsAll([BodyPartSlug.neck, BodyPartSlug.trapezius]),
+        );
+        expect(
+          back.parts.map((part) => part.slug),
           contains(BodyPartSlug.neck),
         );
         expect(
           back.parts.map((part) => part.slug),
-          isNot(contains(BodyPartSlug.neck)),
+          isNot(contains(BodyPartSlug.trapezius)),
         );
 
         final lats = back.parts.singleWhere(
@@ -400,19 +406,19 @@ void main() {
         expect(lats.left, hasLength(1));
         expect(lats.right, hasLength(1));
 
-        final trapezius = back.parts.singleWhere(
-          (part) => part.slug == BodyPartSlug.trapezius,
+        final neck = back.parts.singleWhere(
+          (part) => part.slug == BodyPartSlug.neck,
         );
-        expect(trapezius.common, isEmpty);
-        expect(trapezius.left, hasLength(2));
-        expect(trapezius.right, hasLength(2));
+        expect(neck.common, isEmpty);
+        expect(neck.left, hasLength(1));
+        expect(neck.right, hasLength(1));
 
         final upperBack = back.parts.singleWhere(
           (part) => part.slug == BodyPartSlug.upperBack,
         );
         expect(upperBack.common, isEmpty);
-        expect(upperBack.left, hasLength(gender == BodyGender.male ? 2 : 1));
-        expect(upperBack.right, hasLength(gender == BodyGender.male ? 2 : 1));
+        expect(upperBack.left, hasLength(gender == BodyGender.male ? 3 : 2));
+        expect(upperBack.right, hasLength(gender == BodyGender.male ? 3 : 2));
 
         final lowerBack = back.parts.singleWhere(
           (part) => part.slug == BodyPartSlug.lowerBack,

@@ -159,28 +159,26 @@ def apply_taxonomy_overrides(
 ) -> list[dict[str, object]]:
     """Apply repo-local taxonomy splits on top of upstream path assets.
 
-    Upstream groups latissimus-dorsi geometry into ``upper-back`` and exposes a
-    separate ``neck`` part on the back view. This package presents lats as a
-    first-class slug and treats the back-view neck/traps mass as trapezius,
-    while preserving the front-view neck taxonomy.
+    Upstream groups latissimus-dorsi geometry into ``upper-back`` and exposes
+    upper traps as a separate ``trapezius`` part. This package presents lats as
+    a first-class slug and treats the back-view traps geometry as part of the
+    broader upper-back region, while keeping neck geometry out of upper-back.
     """
 
     result = [clone_part(part) for part in parts]
     if view != "back":
         return result
 
-    neck = next((part for part in result if part["slug"] == "neck"), None)
-    if neck is not None:
-        trapezius = find_part(result, "trapezius")
-        for side in ("common", "left", "right"):
-            trapezius[side] = [*trapezius[side], *neck[side]]
-        result.remove(neck)
-
     lats_indices = {
         ("male", "back"): {"left": {1}, "right": {2}},
         ("female", "back"): {"left": {1}, "right": {1}},
     }[(gender, view)]
     upper_back = find_part(result, "upper-back")
+    trapezius = find_part(result, "trapezius")
+    for side in ("common", "left", "right"):
+        upper_back[side] = [*upper_back[side], *trapezius[side]]
+    result.remove(trapezius)
+
     lats = {"slug": "lats", "common": [], "left": [], "right": []}
     for side in ("left", "right"):
         paths = list(upper_back[side])

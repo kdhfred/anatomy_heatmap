@@ -181,8 +181,8 @@ One input can map to multiple slugs: for example `Finger Flexors` maps to both
 sets, primary wins. Unknown labels are returned in `unmapped` so product tests
 can detect missing taxonomy coverage. Back labels are split so `Latissimus`,
 `Latissimus Dorsi`, and `Lats` map to `lats`, while `Rhomboids` remains
-`upperBack` and `Erector Spinae` remains `lowerBack`. Specific hand labels such
-as `Thumb`,
+`upperBack`, `Trapezius`/`Traps` are folded into `upperBack` without neck, and
+`Erector Spinae` remains `lowerBack`. Specific hand labels such as `Thumb`,
 `Index Finger`, `Middle Finger`, `Ring Finger`, `Pinky`, and `Palm` are emitted
 as `BodyPartSlug.hands` highlights with `handPart` populated, so the full
 `AnatomyHeatmap` can color exact child regions instead of collapsing them to the
