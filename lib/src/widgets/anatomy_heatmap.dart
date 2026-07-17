@@ -11,6 +11,7 @@ import '../data/body_svg_asset.dart';
 import '../data/body_svg_assets.dart';
 import '../data/hand_svg_segments.dart';
 import '../hand_types.dart';
+import '../muscle_region_types.dart';
 
 /// Callback payload for a tapped body-part fragment.
 class BodyPartTap {
@@ -41,6 +42,9 @@ class BodyPartTap {
 
   /// Highlight data active for this fragment, if any.
   final BodyHighlightData? highlight;
+
+  /// Exact muscle region containing the tapped SVG fragment, when applicable.
+  MuscleRegionKey? get muscleRegionKey => slug.muscleRegionKey;
 }
 
 /// Renders one or more anatomy heatmap SVG views.
@@ -425,7 +429,7 @@ BodyHighlightData? _highlightForFragment({
   if (asset.view == BodyView.back &&
       slug == BodyPartSlug.trapezius &&
       !hiddenParts.contains(BodyPartSlug.upperBack)) {
-    return highlightIndex.highlightFor(BodyPartSlug.upperBack, pathSide);
+    return highlightIndex.legacyHighlightFor(BodyPartSlug.upperBack, pathSide);
   }
 
   return null;
@@ -517,6 +521,18 @@ class _HighlightIndex {
       candidates,
       pathSide,
       (highlight) => highlight.handPart == null,
+    );
+  }
+
+  BodyHighlightData? legacyHighlightFor(BodyPartSlug slug, BodySide pathSide) {
+    final candidates = _bySlug[slug];
+    if (candidates == null || candidates.isEmpty) {
+      return null;
+    }
+    return _strongestMatching(
+      candidates,
+      pathSide,
+      (highlight) => highlight.muscleRegionKey == null,
     );
   }
 

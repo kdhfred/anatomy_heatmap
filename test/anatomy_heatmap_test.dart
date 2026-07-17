@@ -24,6 +24,86 @@ void main() {
     });
   });
 
+  group('MuscleRegionKey', () {
+    test('exposes stable ordered wire keys and strict parsing', () {
+      expect(MuscleRegionKey.values.map((region) => region.wireKey), const [
+        'chest',
+        'abs',
+        'obliques',
+        'biceps',
+        'triceps',
+        'forearm',
+        'deltoids',
+        'trapezius',
+        'upper-back',
+        'lats',
+        'lower-back',
+        'gluteal',
+        'hamstring',
+        'quadriceps',
+        'calves',
+        'adductors',
+        'tibialis',
+        'neck',
+        'abductors',
+      ]);
+
+      for (final region in MuscleRegionKey.values) {
+        expect(muscleRegionKeyFromWire(region.wireKey), region);
+        expect(tryMuscleRegionKeyFromWire(region.wireKey), region);
+        expect(region.bodyPartSlug.muscleRegionKey, region);
+      }
+      expect(tryMuscleRegionKeyFromWire('upperBack'), isNull);
+      expect(
+        () => muscleRegionKeyFromWire('not-a-region'),
+        throwsArgumentError,
+      );
+    });
+
+    test('excludes non-muscle body and hand regions', () {
+      for (final slug in const [
+        BodyPartSlug.hands,
+        BodyPartSlug.head,
+        BodyPartSlug.feet,
+        BodyPartSlug.ankles,
+        BodyPartSlug.knees,
+        BodyPartSlug.hair,
+      ]) {
+        expect(slug.muscleRegionKey, isNull);
+      }
+    });
+
+    test('view availability matches bundled assets for both genders', () {
+      for (final asset in bodySvgAssets) {
+        final actual = asset.parts
+            .map((part) => part.slug.muscleRegionKey)
+            .nonNulls
+            .toSet();
+        final expected = MuscleRegionKey.values
+            .where((region) => region.isRenderableIn(asset.view))
+            .toSet();
+
+        expect(
+          actual,
+          expected,
+          reason: '${asset.gender.name}/${asset.view.name}',
+        );
+      }
+    });
+
+    test('exact highlight identity survives value-only copies', () {
+      final copied = BodyHighlightData.muscleRegion(
+        region: MuscleRegionKey.upperBack,
+        intensity: 1,
+      ).copyWith(intensity: 0.4);
+
+      expect(copied.slug, BodyPartSlug.upperBack);
+      expect(copied.muscleRegionKey, MuscleRegionKey.upperBack);
+      expect(copied.intensity, 0.4);
+      expect(copied.copyWith(slug: BodyPartSlug.chest).muscleRegionKey, isNull);
+    });
+  });
+
   group('MuscleToBodyPartAdapter', () {
     test('maps seeded aliases correctly', () {
       final adapter = MuscleToBodyPartAdapter();
@@ -541,6 +621,64 @@ void main() {
       expect(taps[2].highlight?.slug, BodyPartSlug.upperBack);
     },
   );
+
+  testWidgets(
+    'atomic upperBack excludes trapezius while reporting exact tap regions',
+    (tester) async {
+      final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
+      final upperBack = asset.parts.singleWhere(
+        (part) => part.slug == BodyPartSlug.upperBack,
+      );
+      final trapezius = asset.parts.singleWhere(
+        (part) => part.slug == BodyPartSlug.trapezius,
+      );
+      final highlight = BodyHighlightData.muscleRegion(
+        region: MuscleRegionKey.upperBack,
+      );
+
+      final taps = await _tapBackHeatmap(
+        tester,
+        highlights: [highlight],
+        svgPoints: [
+          _pathInteriorPoint(upperBack.left.first),
+          _pathInteriorPoint(trapezius.left.last),
+        ],
+      );
+
+      expect(taps, hasLength(2));
+      expect(taps[0].muscleRegionKey, MuscleRegionKey.upperBack);
+      expect(taps[0].highlight?.muscleRegionKey, MuscleRegionKey.upperBack);
+      expect(taps[1].muscleRegionKey, MuscleRegionKey.trapezius);
+      expect(taps[1].highlight, isNull);
+    },
+  );
+
+  testWidgets('atomic region highlights preserve side isolation', (
+    tester,
+  ) async {
+    final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
+    final lats = asset.parts.singleWhere(
+      (part) => part.slug == BodyPartSlug.lats,
+    );
+
+    final taps = await _tapBackHeatmap(
+      tester,
+      highlights: [
+        BodyHighlightData.muscleRegion(
+          region: MuscleRegionKey.lats,
+          side: BodySide.left,
+        ),
+      ],
+      svgPoints: [
+        _pathInteriorPoint(lats.left.single),
+        _pathInteriorPoint(lats.right.single),
+      ],
+    );
+
+    expect(taps, hasLength(2));
+    expect(taps[0].highlight?.muscleRegionKey, MuscleRegionKey.lats);
+    expect(taps[1].highlight, isNull);
+  });
 
   testWidgets(
     'back trapezius highlight takes priority over compound upperBack',

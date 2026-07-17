@@ -20,7 +20,7 @@ Upstream credit:
 `anatomy_heatmap` is a small Flutter package for rendering body-part SVG
 heatmaps. It ports the useful SVG path taxonomy from
 [`react-native-body-highlighter`](https://github.com/HichamELBSI/react-native-body-highlighter)
-and adds deterministic Frez-style muscle-to-body-part mapping semantics.
+and adds stable, independently selectable muscle-region keys.
 
 ## Preview
 
@@ -35,6 +35,8 @@ Example app running on an iPhone 17 Pro Max simulator:
 - Male and female body maps.
 - Front and back body views.
 - Body-part slug highlighting with left/right/both/common side semantics.
+- Stable atomic `MuscleRegionKey` wire keys backed only by independently
+  selectable bundled SVG geometry.
 - Seed-color opacity heatmap rendering for primary, secondary, or aggregate load.
 - Preset color styles, including a region-specific `muscleGroups` palette.
 - Explicit muscle-name-to-SVG-slug adapter; no fuzzy runtime inference.
@@ -83,6 +85,60 @@ const AnatomyHeatmap(
   ],
 );
 ```
+
+## Atomic muscle regions
+
+`MuscleRegionKey` is the rendering contract for muscle data. It intentionally
+contains no exercise, primary/secondary, or product grouping semantics. Persist
+`wireKey`, never the enum `name` or `index`.
+
+The canonical wire-key order is:
+
+`chest`, `abs`, `obliques`, `biceps`, `triceps`, `forearm`, `deltoids`,
+`trapezius`, `upper-back`, `lats`, `lower-back`, `gluteal`, `hamstring`,
+`quadriceps`, `calves`, `adductors`, `tibialis`, `neck`, `abductors`.
+
+Use `muscleRegionKeyFromWire` for strict parsing or
+`tryMuscleRegionKeyFromWire` for nullable parsing. Each key exposes its
+backwards-compatible `bodyPartSlug`, `label`, supported `views`, and
+`isRenderableIn(view)`.
+
+```dart
+final storedKey = muscleRegionKeyFromWire('upper-back');
+
+AnatomyHeatmap(
+  views: const [BodyView.back],
+  highlights: [
+    BodyHighlightData.muscleRegion(
+      region: storedKey,
+      intensity: 1,
+      side: BodySide.left,
+    ),
+  ],
+  onPartTap: (tap) {
+    // tap.muscleRegionKey reports the exact geometry that was tapped.
+  },
+);
+```
+
+Front-only regions are `chest`, `abs`, `obliques`, `biceps`, `quadriceps`,
+`tibialis`, and `neck`. Back-only regions are `upper-back`, `lats`,
+`lower-back`, `gluteal`, `hamstring`, and `abductors`. The remaining keys have
+front and back geometry for both supported genders.
+
+For backwards compatibility,
+`BodyHighlightData(slug: BodyPartSlug.upperBack)` retains the historical
+compound behavior that also colors back-view trapezius paths. The atomic
+`BodyHighlightData.muscleRegion(region: MuscleRegionKey.upperBack)` constructor
+selects only `upper-back` geometry.
+
+The source artwork cannot independently render serratus anterior or
+iliopsoas/hip flexors. It also does not safely distinguish individual heads or
+fibers within the pectorals, deltoids, biceps, triceps, forearms, rotator cuff,
+upper back, spinal erectors, gluteals, adductors, quadriceps, hamstrings, calves,
+obliques, abs, or neck. Multiple SVG paths inside one key are not public
+anatomical identities; finer targeting requires semantically annotated or new
+artwork.
 
 ## Heatmap semantics
 
@@ -181,8 +237,8 @@ One input can map to multiple slugs: for example `Finger Flexors` maps to both
 sets, primary wins. Unknown labels are returned in `unmapped` so product tests
 can detect missing taxonomy coverage. Back labels are split so `Latissimus`,
 `Latissimus Dorsi`, and `Lats` map to `lats`, while `Rhomboids` remains
-`upperBack`, `Trapezius`/`Traps` are folded into `upperBack` without neck, and
-`Erector Spinae` remains `lowerBack`. Hip-abductor labels such as
+`upperBack`, `Trapezius`/`Traps` map to `trapezius`, and `Erector Spinae`
+remains `lowerBack`. Hip-abductor labels such as
 `Gluteus Medius`, `Gluteus Minimus`, `Tensor Fasciae Latae`, and `TFL` map to
 `abductors`; `Gluteus Maximus` stays `gluteal`, and `Adductors` stays separate.
 Specific hand labels such as `Thumb`,
@@ -244,6 +300,22 @@ HandPartsHeatmap(
 
 Future climbing patterns to model explicitly include `4F`, `3F front/back`,
 `2F front/middle/back`, `mono`, `pinch/thumb opposition`, and custom pockets.
+
+## Regenerating SVG assets
+
+`lib/src/data/body_svg_assets.dart` is generated; do not edit it by hand. Clone
+or check out `react-native-body-highlighter`, then run:
+
+```sh
+python3 tool/convert_upstream_assets.py /path/to/react-native-body-highlighter
+dart format lib/src/data/body_svg_assets.dart
+flutter test
+flutter analyze
+```
+
+The converter owns the lats and abductors path-index splits and the rear-neck
+to trapezius merge. Review those geometry-sensitive overrides whenever the
+upstream assets change.
 
 ## License
 

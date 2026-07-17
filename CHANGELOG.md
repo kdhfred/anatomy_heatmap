@@ -1,3 +1,11 @@
+## Unreleased
+
+- Added stable `MuscleRegionKey` wire keys for the 19 independently selectable
+  muscle regions backed by the bundled SVG artwork.
+- Added exact muscle-region highlights and tap identities while preserving the
+  legacy compound `upperBack` highlight behavior.
+- Documented view availability, serialization, asset limits, and regeneration.
+
 ## 0.0.1
 
 - Initial Flutter package with anatomical SVG heatmap rendering.
