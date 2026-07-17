@@ -1,50 +1,21 @@
 import 'package:flutter/widgets.dart';
 
 import 'body_types.dart';
-import 'hand_types.dart';
 import 'muscle_region_types.dart';
 
-/// Highlight data for one body-part slug.
+/// Highlight data for one independently renderable muscle region.
 class BodyHighlightData {
   /// Creates a heatmap highlight.
   const BodyHighlightData({
-    required this.slug,
-    this.handPart,
+    required this.region,
     this.intensity = 1,
     this.side = BodySide.both,
     this.color,
     this.metric,
   });
 
-  /// Creates an exact highlight for one independently renderable muscle region.
-  factory BodyHighlightData.muscleRegion({
-    required MuscleRegionKey region,
-    double intensity = 1,
-    BodySide side = BodySide.both,
-    Color? color,
-    String? metric,
-  }) {
-    return BodyHighlightData(
-      slug: region.bodyPartSlug,
-      intensity: intensity,
-      side: side,
-      color: color,
-      metric: metric,
-    );
-  }
-
-  /// Body part to highlight.
-  final BodyPartSlug slug;
-
-  /// Exact muscle-region identity for muscle slugs, otherwise null.
-  MuscleRegionKey? get muscleRegionKey => slug.muscleRegionKey;
-
-  /// Optional child region under [BodyPartSlug.hands].
-  ///
-  /// When null, a `hands` highlight applies to every rendered hand child
-  /// segment. When non-null, it applies only to the matching palm/finger
-  /// segment, giving callers a tree-shaped `hands -> finger/palm` heatmap.
-  final HandPartSlug? handPart;
+  /// Muscle-region identity owned by the renderer contract.
+  final MuscleRegionKey region;
 
   /// Normalized heatmap intensity. Values outside 0..1 are clamped at render
   /// time so callers can pass raw normalized calculations safely.
@@ -78,16 +49,14 @@ class BodyHighlightData {
 
   /// Creates a copy with selected fields changed.
   BodyHighlightData copyWith({
-    BodyPartSlug? slug,
-    HandPartSlug? handPart,
+    MuscleRegionKey? region,
     double? intensity,
     BodySide? side,
     Color? color,
     String? metric,
   }) {
     return BodyHighlightData(
-      slug: slug ?? this.slug,
-      handPart: handPart ?? this.handPart,
+      region: region ?? this.region,
       intensity: intensity ?? this.intensity,
       side: side ?? this.side,
       color: color ?? this.color,
@@ -97,8 +66,7 @@ class BodyHighlightData {
 
   @override
   String toString() {
-    return 'BodyHighlightData(slug: $slug, handPart: $handPart, '
-        'intensity: $intensity, '
+    return 'BodyHighlightData(region: $region, intensity: $intensity, '
         'side: $side, metric: $metric)';
   }
 }

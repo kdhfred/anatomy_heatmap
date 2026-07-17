@@ -1,5 +1,6 @@
 import 'dart:ui' show Rect;
 
+import '../body_render_region.dart';
 import '../body_types.dart';
 
 /// One SVG body map for a gender/view pair.
@@ -29,7 +30,7 @@ class BodySvgAsset {
   final List<BodyPartSvgData> parts;
 }
 
-/// SVG path fragments for one body-part slug.
+/// SVG path fragments for one renderer-owned region.
 class BodyPartSvgData {
   /// Creates body-part SVG fragments.
   const BodyPartSvgData({
@@ -39,8 +40,8 @@ class BodyPartSvgData {
     this.right = const [],
   });
 
-  /// Body-part slug.
-  final BodyPartSlug slug;
+  /// Renderer-owned region for these fragments.
+  final BodyRenderRegion slug;
 
   /// Fragments with no side-specific semantics.
   final List<String> common;

@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'body_highlight_data.dart';
-import 'body_types.dart';
 import 'hand_types.dart';
+import 'muscle_region_types.dart';
 
 /// Built-in color presets for anatomy heatmaps.
 enum BodyHeatmapColorPreset {
@@ -22,7 +22,7 @@ class BodyHeatmapColorScheme {
     required this.borderColor,
     this.hairFill = const Color(0xFF0B1220),
     this.partStroke = const Color(0xFFFFFFFF),
-    this.bodyPartHeatColors = const {},
+    this.muscleRegionHeatColors = const {},
     this.handPartHeatColors = const {},
     this.minActiveOpacity = 0.22,
     this.maxActiveOpacity = 0.92,
@@ -45,13 +45,13 @@ class BodyHeatmapColorScheme {
   /// Optional stroke between body-part fragments.
   final Color partStroke;
 
-  /// Optional active-color overrides for specific body regions.
+  /// Optional active-color overrides for muscle regions.
   ///
   /// [BodyHighlightData.color] still wins when a caller provides a per-row
   /// custom color.
-  final Map<BodyPartSlug, Color> bodyPartHeatColors;
+  final Map<MuscleRegionKey, Color> muscleRegionHeatColors;
 
-  /// Optional active-color overrides for child regions under [BodyPartSlug.hands].
+  /// Optional active-color overrides for hand regions.
   ///
   /// [BodyHighlightData.color] still wins when a caller provides a per-row
   /// custom color.
@@ -130,41 +130,36 @@ class BodyHeatmapColorScheme {
     return base.copyWith(heatColor: seedColor);
   }
 
-  static const Map<BodyPartSlug, Color> _muscleGroupBodyPartHeatColors = {
-    BodyPartSlug.chest: Color(0xFFE53935),
-    BodyPartSlug.abs: Color(0xFFFFA000),
-    BodyPartSlug.obliques: Color(0xFFFF7043),
-    BodyPartSlug.biceps: Color(0xFF1E88E5),
-    BodyPartSlug.triceps: Color(0xFF42A5F5),
-    BodyPartSlug.forearm: Color(0xFF26A69A),
-    BodyPartSlug.hands: Color(0xFF00ACC1),
-    BodyPartSlug.deltoids: Color(0xFFAB47BC),
-    BodyPartSlug.trapezius: Color(0xFF7E57C2),
-    BodyPartSlug.upperBack: Color(0xFF5E35B1),
-    BodyPartSlug.lats: Color(0xFF3949AB),
-    BodyPartSlug.lowerBack: Color(0xFF8E24AA),
-    BodyPartSlug.gluteal: Color(0xFFEC407A),
-    BodyPartSlug.hamstring: Color(0xFF66BB6A),
-    BodyPartSlug.quadriceps: Color(0xFF43A047),
-    BodyPartSlug.calves: Color(0xFF7CB342),
-    BodyPartSlug.adductors: Color(0xFF9CCC65),
-    BodyPartSlug.tibialis: Color(0xFF26C6DA),
-    BodyPartSlug.neck: Color(0xFF78909C),
-    BodyPartSlug.head: Color(0xFF90A4AE),
-    BodyPartSlug.feet: Color(0xFF8D6E63),
-    BodyPartSlug.ankles: Color(0xFFA1887F),
-    BodyPartSlug.knees: Color(0xFF689F38),
-    BodyPartSlug.abductors: Color(0xFFF06292),
+  static const Map<MuscleRegionKey, Color> _muscleGroupRegionHeatColors = {
+    MuscleRegionKey.chest: Color(0xFFE53935),
+    MuscleRegionKey.abs: Color(0xFFFFA000),
+    MuscleRegionKey.obliques: Color(0xFFFF7043),
+    MuscleRegionKey.biceps: Color(0xFF1E88E5),
+    MuscleRegionKey.triceps: Color(0xFF42A5F5),
+    MuscleRegionKey.forearm: Color(0xFF26A69A),
+    MuscleRegionKey.deltoids: Color(0xFFAB47BC),
+    MuscleRegionKey.trapezius: Color(0xFF7E57C2),
+    MuscleRegionKey.upperBack: Color(0xFF5E35B1),
+    MuscleRegionKey.lats: Color(0xFF3949AB),
+    MuscleRegionKey.lowerBack: Color(0xFF8E24AA),
+    MuscleRegionKey.gluteal: Color(0xFFEC407A),
+    MuscleRegionKey.hamstring: Color(0xFF66BB6A),
+    MuscleRegionKey.quadriceps: Color(0xFF43A047),
+    MuscleRegionKey.calves: Color(0xFF7CB342),
+    MuscleRegionKey.adductors: Color(0xFF9CCC65),
+    MuscleRegionKey.tibialis: Color(0xFF26C6DA),
+    MuscleRegionKey.neck: Color(0xFF78909C),
+    MuscleRegionKey.abductors: Color(0xFFF06292),
   };
 
   static const Map<HandPartSlug, Color> _muscleGroupHandPartHeatColors = {
+    HandPartSlug.hand: Color(0xFF00ACC1),
     HandPartSlug.palm: Color(0xFF00ACC1),
     HandPartSlug.thumb: Color(0xFF00897B),
     HandPartSlug.indexFinger: Color(0xFF039BE5),
     HandPartSlug.middleFinger: Color(0xFF3949AB),
     HandPartSlug.ringFinger: Color(0xFF8E24AA),
     HandPartSlug.littleFinger: Color(0xFFD81B60),
-    HandPartSlug.wrist: Color(0xFF26A69A),
   };
 
   /// Preset that gives major muscle/body regions distinct categorical hues.
@@ -175,7 +170,7 @@ class BodyHeatmapColorScheme {
     inactiveFill: Color(0xFFE8E8E8),
     heatColor: Color(0xFFFF5A4F),
     borderColor: Color(0xFFCCCCCC),
-    bodyPartHeatColors: _muscleGroupBodyPartHeatColors,
+    muscleRegionHeatColors: _muscleGroupRegionHeatColors,
     handPartHeatColors: _muscleGroupHandPartHeatColors,
   );
 
@@ -189,7 +184,7 @@ class BodyHeatmapColorScheme {
     borderColor: Color(0xFF64748B),
     hairFill: Color(0xFFE5E7EB),
     partStroke: Color(0xFF111827),
-    bodyPartHeatColors: _muscleGroupBodyPartHeatColors,
+    muscleRegionHeatColors: _muscleGroupRegionHeatColors,
     handPartHeatColors: _muscleGroupHandPartHeatColors,
   );
 
@@ -210,7 +205,7 @@ class BodyHeatmapColorScheme {
     Color? borderColor,
     Color? hairFill,
     Color? partStroke,
-    Map<BodyPartSlug, Color>? bodyPartHeatColors,
+    Map<MuscleRegionKey, Color>? muscleRegionHeatColors,
     Map<HandPartSlug, Color>? handPartHeatColors,
     double? minActiveOpacity,
     double? maxActiveOpacity,
@@ -223,7 +218,8 @@ class BodyHeatmapColorScheme {
       borderColor: borderColor ?? this.borderColor,
       hairFill: hairFill ?? this.hairFill,
       partStroke: partStroke ?? this.partStroke,
-      bodyPartHeatColors: bodyPartHeatColors ?? this.bodyPartHeatColors,
+      muscleRegionHeatColors:
+          muscleRegionHeatColors ?? this.muscleRegionHeatColors,
       handPartHeatColors: handPartHeatColors ?? this.handPartHeatColors,
       minActiveOpacity: minActiveOpacity ?? this.minActiveOpacity,
       maxActiveOpacity: maxActiveOpacity ?? this.maxActiveOpacity,
@@ -243,7 +239,7 @@ class BodyHeatmapColorScheme {
     Color? borderColor,
     Color? hairFill,
     Color? partStroke,
-    Map<BodyPartSlug, Color> bodyPartHeatColors = const {},
+    Map<MuscleRegionKey, Color> muscleRegionHeatColors = const {},
     Map<HandPartSlug, Color> handPartHeatColors = const {},
     double? minActiveOpacity,
     double? maxActiveOpacity,
@@ -256,9 +252,9 @@ class BodyHeatmapColorScheme {
       borderColor: borderColor,
       hairFill: hairFill,
       partStroke: partStroke,
-      bodyPartHeatColors: bodyPartHeatColors.isEmpty
-          ? this.bodyPartHeatColors
-          : {...this.bodyPartHeatColors, ...bodyPartHeatColors},
+      muscleRegionHeatColors: muscleRegionHeatColors.isEmpty
+          ? this.muscleRegionHeatColors
+          : {...this.muscleRegionHeatColors, ...muscleRegionHeatColors},
       handPartHeatColors: handPartHeatColors.isEmpty
           ? this.handPartHeatColors
           : {...this.handPartHeatColors, ...handPartHeatColors},
@@ -270,16 +266,13 @@ class BodyHeatmapColorScheme {
   }
 
   /// Resolves a fill color for [highlight]. Null means inactive gray.
-  ///
-  /// Hair is not a muscle heatmap region, so inactive hair paths use
-  /// [hairFill] rather than the generic light-gray body fill.
-  Color fillFor(BodyHighlightData? highlight, {BodyPartSlug? slug}) {
+  Color fillFor(BodyHighlightData? highlight) {
     if (highlight == null || highlight.normalizedIntensity <= 0) {
-      return slug == BodyPartSlug.hair ? hairFill : inactiveFill;
+      return inactiveFill;
     }
     return colorForIntensity(
       highlight.normalizedIntensity,
-      baseColor: highlight.color ?? _baseColorFor(slug, highlight.handPart),
+      baseColor: highlight.color ?? muscleRegionHeatColors[highlight.region],
     );
   }
 
@@ -304,15 +297,5 @@ class BodyHeatmapColorScheme {
     final maxOpacity = BodyHighlightData.normalizeIntensity(maxActiveOpacity);
     final opacity = minOpacity + (maxOpacity - minOpacity) * normalized;
     return (baseColor ?? heatColor).withValues(alpha: opacity);
-  }
-
-  Color? _baseColorFor(BodyPartSlug? slug, HandPartSlug? handPart) {
-    if (slug == BodyPartSlug.hands && handPart != null) {
-      return handPartHeatColors[handPart] ?? bodyPartHeatColors[slug];
-    }
-    if (slug == null) {
-      return null;
-    }
-    return bodyPartHeatColors[slug];
   }
 }

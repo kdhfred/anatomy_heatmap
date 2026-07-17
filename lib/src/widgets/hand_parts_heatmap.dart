@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:path_drawing/path_drawing.dart';
 
 import '../body_heatmap_color_scheme.dart';
+import '../body_render_region.dart';
 import '../body_types.dart';
 import '../data/body_svg_asset.dart';
 import '../data/body_svg_assets.dart';
@@ -148,7 +149,7 @@ class _HandViewHeatmap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hand = asset.parts.firstWhere(
-      (part) => part.slug == BodyPartSlug.hands,
+      (part) => part.slug == BodyRenderRegion.hands,
     );
     final segments = handSvgSegmentsFor(hand, side);
     final fullViewBox = paddedHandBoundsFor(segments);
@@ -344,21 +345,23 @@ class _HandHighlightIndex {
   final Map<HandPartSlug, List<HandHighlightData>> _bySlug = {};
 
   HandHighlightData? highlightFor(HandPartSlug slug, BodySide pathSide) {
-    final candidates = [
-      ...?_bySlug[slug],
-      if (slug == HandPartSlug.palm) ...?_bySlug[HandPartSlug.wrist],
-    ];
-    if (candidates.isEmpty) {
-      return null;
+    final exact = _strongest(_bySlug[slug], pathSide);
+    if (exact != null) {
+      return exact;
     }
+    return _strongest(_bySlug[HandPartSlug.hand], pathSide);
+  }
 
+  HandHighlightData? _strongest(
+    List<HandHighlightData>? candidates,
+    BodySide pathSide,
+  ) {
+    if (candidates == null) return null;
     HandHighlightData? strongest;
     for (final highlight in candidates) {
-      if (!_sideMatches(highlight.side, pathSide)) {
-        continue;
-      }
-      if (strongest == null ||
-          highlight.normalizedIntensity > strongest.normalizedIntensity) {
+      if (_sideMatches(highlight.side, pathSide) &&
+          (strongest == null ||
+              highlight.normalizedIntensity > strongest.normalizedIntensity)) {
         strongest = highlight;
       }
     }

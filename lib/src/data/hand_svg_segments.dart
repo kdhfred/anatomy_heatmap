@@ -7,7 +7,7 @@ import '../body_types.dart';
 import '../hand_types.dart';
 import 'body_svg_asset.dart';
 
-/// One classified SVG path segment below [BodyPartSlug.hands].
+/// One classified SVG path segment within the internal hands render region.
 class HandSvgSegment {
   /// Creates a classified hand segment.
   const HandSvgSegment({

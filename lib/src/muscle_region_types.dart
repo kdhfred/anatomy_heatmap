@@ -6,35 +6,27 @@ import 'body_types.dart';
 /// These keys describe render geometry only. Exercise categories, primary and
 /// secondary targeting, and other business groupings belong in caller code.
 enum MuscleRegionKey {
-  chest(BodyPartSlug.chest, 'chest', 'Chest', _frontOnly),
-  abs(BodyPartSlug.abs, 'abs', 'Abs', _frontOnly),
-  obliques(BodyPartSlug.obliques, 'obliques', 'Obliques', _frontOnly),
-  biceps(BodyPartSlug.biceps, 'biceps', 'Biceps', _frontOnly),
-  triceps(BodyPartSlug.triceps, 'triceps', 'Triceps', _frontAndBack),
-  forearm(BodyPartSlug.forearm, 'forearm', 'Forearm', _frontAndBack),
-  deltoids(BodyPartSlug.deltoids, 'deltoids', 'Deltoids', _frontAndBack),
-  trapezius(BodyPartSlug.trapezius, 'trapezius', 'Trapezius', _frontAndBack),
-  upperBack(BodyPartSlug.upperBack, 'upper-back', 'Upper back', _backOnly),
-  lats(BodyPartSlug.lats, 'lats', 'Lats', _backOnly),
-  lowerBack(BodyPartSlug.lowerBack, 'lower-back', 'Lower back', _backOnly),
-  gluteal(BodyPartSlug.gluteal, 'gluteal', 'Gluteal', _backOnly),
-  hamstring(BodyPartSlug.hamstring, 'hamstring', 'Hamstring', _backOnly),
-  quadriceps(BodyPartSlug.quadriceps, 'quadriceps', 'Quadriceps', _frontOnly),
-  calves(BodyPartSlug.calves, 'calves', 'Calves', _frontAndBack),
-  adductors(BodyPartSlug.adductors, 'adductors', 'Adductors', _frontAndBack),
-  tibialis(BodyPartSlug.tibialis, 'tibialis', 'Tibialis', _frontOnly),
-  neck(BodyPartSlug.neck, 'neck', 'Neck', _frontOnly),
-  abductors(BodyPartSlug.abductors, 'abductors', 'Abductors', _backOnly);
+  chest('chest', 'Chest', _frontOnly),
+  abs('abs', 'Abs', _frontOnly),
+  obliques('obliques', 'Obliques', _frontOnly),
+  biceps('biceps', 'Biceps', _frontOnly),
+  triceps('triceps', 'Triceps', _frontAndBack),
+  forearm('forearm', 'Forearm', _frontAndBack),
+  deltoids('deltoids', 'Deltoids', _frontAndBack),
+  trapezius('trapezius', 'Trapezius', _frontAndBack),
+  upperBack('upper-back', 'Upper back', _backOnly),
+  lats('lats', 'Lats', _backOnly),
+  lowerBack('lower-back', 'Lower back', _backOnly),
+  gluteal('gluteal', 'Gluteal', _backOnly),
+  hamstring('hamstring', 'Hamstring', _backOnly),
+  quadriceps('quadriceps', 'Quadriceps', _frontOnly),
+  calves('calves', 'Calves', _frontAndBack),
+  adductors('adductors', 'Adductors', _frontAndBack),
+  tibialis('tibialis', 'Tibialis', _frontOnly),
+  neck('neck', 'Neck', _frontOnly),
+  abductors('abductors', 'Abductors', _backOnly);
 
-  const MuscleRegionKey(
-    this.bodyPartSlug,
-    this.wireKey,
-    this.label,
-    this.views,
-  );
-
-  /// Renderer-owned body-part slug that owns this region's SVG fragments.
-  final BodyPartSlug bodyPartSlug;
+  const MuscleRegionKey(this.wireKey, this.label, this.views);
 
   /// Stable serialized key. Do not persist [index] or the enum [name].
   final String wireKey;
@@ -70,17 +62,4 @@ MuscleRegionKey? tryMuscleRegionKeyFromWire(String wireKey) {
     }
   }
   return null;
-}
-
-/// Muscle-region helpers for the renderer-owned body-part taxonomy.
-extension BodyPartMuscleRegionX on BodyPartSlug {
-  /// Exact muscle region backed by this slug, or null for non-muscle parts.
-  MuscleRegionKey? get muscleRegionKey {
-    for (final region in MuscleRegionKey.values) {
-      if (region.bodyPartSlug == this) {
-        return region;
-      }
-    }
-    return null;
-  }
 }
