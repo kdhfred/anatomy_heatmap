@@ -33,7 +33,7 @@ enum MuscleRegionKey {
     this.views,
   );
 
-  /// Existing body-part slug that owns this region's SVG fragments.
+  /// Renderer-owned body-part slug that owns this region's SVG fragments.
   final BodyPartSlug bodyPartSlug;
 
   /// Stable serialized key. Do not persist [index] or the enum [name].
@@ -72,7 +72,7 @@ MuscleRegionKey? tryMuscleRegionKeyFromWire(String wireKey) {
   return null;
 }
 
-/// Muscle-region helpers for the backwards-compatible body-part taxonomy.
+/// Muscle-region helpers for the renderer-owned body-part taxonomy.
 extension BodyPartMuscleRegionX on BodyPartSlug {
   /// Exact muscle region backed by this slug, or null for non-muscle parts.
   MuscleRegionKey? get muscleRegionKey {

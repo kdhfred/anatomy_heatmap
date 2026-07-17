@@ -147,27 +147,6 @@ class AnatomyHeatmap extends StatelessWidget {
   }
 }
 
-/// Backwards-compatible name for callers that still render a body-region map.
-@Deprecated('Use AnatomyHeatmap instead.')
-class BodyPartsHeatmap extends AnatomyHeatmap {
-  /// Creates a body-region heatmap using the legacy widget name.
-  const BodyPartsHeatmap({
-    super.key,
-    super.gender,
-    super.views,
-    super.highlights,
-    super.colorScheme,
-    super.handDetailLevel,
-    super.onPartTap,
-    super.hiddenParts,
-    super.showOutline,
-    super.spacing,
-    super.height,
-    super.focusHighlights,
-    super.focusPadding,
-  });
-}
-
 class _BodyViewHeatmap extends StatelessWidget {
   const _BodyViewHeatmap({
     required this.asset,
@@ -270,14 +249,12 @@ class _BodyViewHeatmap extends StatelessWidget {
             side: fragment.side,
             handPart: fragment.handPart,
             highlight: _highlightForFragment(
-              asset: asset,
               highlightIndex: highlightIndex,
               slug: part.slug,
               pathSide: fragment.side,
               handPart: fragment.handPart,
               collapseHandChildren:
                   handDetailLevel == HandDetailLevel.handsOnly,
-              hiddenParts: hiddenParts,
             ),
           );
         }
@@ -334,13 +311,11 @@ class _BodyHeatmapPainter extends CustomPainter {
       }
       for (final fragment in _fragmentsFor(part, handDetailLevel)) {
         final highlight = _highlightForFragment(
-          asset: asset,
           highlightIndex: highlightIndex,
           slug: part.slug,
           pathSide: fragment.side,
           handPart: fragment.handPart,
           collapseHandChildren: handDetailLevel == HandDetailLevel.handsOnly,
-          hiddenParts: hiddenParts,
         );
         final fillPaint = ui.Paint()
           ..style = ui.PaintingStyle.fill
@@ -390,13 +365,11 @@ ui.Rect _highlightFocusViewBox({
     if (hiddenParts.contains(part.slug)) continue;
     for (final fragment in _fragmentsFor(part, handDetailLevel)) {
       final highlight = _highlightForFragment(
-        asset: asset,
         highlightIndex: highlightIndex,
         slug: part.slug,
         pathSide: fragment.side,
         handPart: fragment.handPart,
         collapseHandChildren: handDetailLevel == HandDetailLevel.handsOnly,
-        hiddenParts: hiddenParts,
       );
       if (highlight == null || highlight.normalizedIntensity <= 0) continue;
       final pathBounds = _PathCache.parse(fragment.pathData).getBounds();
@@ -408,11 +381,9 @@ ui.Rect _highlightFocusViewBox({
 }
 
 BodyHighlightData? _highlightForFragment({
-  required BodySvgAsset asset,
   required _HighlightIndex highlightIndex,
   required BodyPartSlug slug,
   required BodySide pathSide,
-  required Set<BodyPartSlug> hiddenParts,
   HandPartSlug? handPart,
   bool collapseHandChildren = false,
 }) {
@@ -425,13 +396,6 @@ BodyHighlightData? _highlightForFragment({
   if (direct != null) {
     return direct;
   }
-
-  if (asset.view == BodyView.back &&
-      slug == BodyPartSlug.trapezius &&
-      !hiddenParts.contains(BodyPartSlug.upperBack)) {
-    return highlightIndex.legacyHighlightFor(BodyPartSlug.upperBack, pathSide);
-  }
-
   return null;
 }
 
@@ -521,18 +485,6 @@ class _HighlightIndex {
       candidates,
       pathSide,
       (highlight) => highlight.handPart == null,
-    );
-  }
-
-  BodyHighlightData? legacyHighlightFor(BodyPartSlug slug, BodySide pathSide) {
-    final candidates = _bySlug[slug];
-    if (candidates == null || candidates.isEmpty) {
-      return null;
-    }
-    return _strongestMatching(
-      candidates,
-      pathSide,
-      (highlight) => highlight.muscleRegionKey == null,
     );
   }
 

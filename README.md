@@ -77,11 +77,17 @@ AnatomyHeatmap(
 In layouts without a bounded height, provide `height`:
 
 ```dart
-const AnatomyHeatmap(
+AnatomyHeatmap(
   height: 360,
   highlights: [
-    BodyHighlightData(slug: BodyPartSlug.chest, intensity: 1),
-    BodyHighlightData(slug: BodyPartSlug.upperBack, intensity: 0.45),
+    BodyHighlightData.muscleRegion(
+      region: MuscleRegionKey.chest,
+      intensity: 1,
+    ),
+    BodyHighlightData.muscleRegion(
+      region: MuscleRegionKey.upperBack,
+      intensity: 0.45,
+    ),
   ],
 );
 ```
@@ -100,7 +106,7 @@ The canonical wire-key order is:
 
 Use `muscleRegionKeyFromWire` for strict parsing or
 `tryMuscleRegionKeyFromWire` for nullable parsing. Each key exposes its
-backwards-compatible `bodyPartSlug`, `label`, supported `views`, and
+renderer-owned `bodyPartSlug`, `label`, supported `views`, and
 `isRenderableIn(view)`.
 
 ```dart
@@ -126,11 +132,11 @@ Front-only regions are `chest`, `abs`, `obliques`, `biceps`, `quadriceps`,
 `lower-back`, `gluteal`, `hamstring`, and `abductors`. The remaining keys have
 front and back geometry for both supported genders.
 
-For backwards compatibility,
-`BodyHighlightData(slug: BodyPartSlug.upperBack)` retains the historical
-compound behavior that also colors back-view trapezius paths. The atomic
-`BodyHighlightData.muscleRegion(region: MuscleRegionKey.upperBack)` constructor
-selects only `upper-back` geometry.
+Every muscle slug selects only its own SVG geometry. For example,
+`upper-back` and `trapezius` are always independent whether a highlight is
+created from `MuscleRegionKey` or the equivalent renderer-owned `BodyPartSlug`.
+`BodyPartSlug` remains the anatomy renderer's complete geometry taxonomy for
+non-muscle regions such as hands, head, hair, knees, ankles, and feet.
 
 The source artwork cannot independently render serratus anterior or
 iliopsoas/hip flexors. It also does not safely distinguish individual heads or

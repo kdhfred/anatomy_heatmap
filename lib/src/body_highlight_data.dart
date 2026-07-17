@@ -14,23 +14,9 @@ class BodyHighlightData {
     this.side = BodySide.both,
     this.color,
     this.metric,
-  }) : muscleRegionKey = null;
-
-  const BodyHighlightData._({
-    required this.slug,
-    required this.muscleRegionKey,
-    this.handPart,
-    this.intensity = 1,
-    this.side = BodySide.both,
-    this.color,
-    this.metric,
   });
 
   /// Creates an exact highlight for one independently renderable muscle region.
-  ///
-  /// Unlike the legacy [BodyHighlightData] constructor, a
-  /// [MuscleRegionKey.upperBack] highlight does not also highlight trapezius
-  /// geometry on the back view.
   factory BodyHighlightData.muscleRegion({
     required MuscleRegionKey region,
     double intensity = 1,
@@ -38,9 +24,8 @@ class BodyHighlightData {
     Color? color,
     String? metric,
   }) {
-    return BodyHighlightData._(
+    return BodyHighlightData(
       slug: region.bodyPartSlug,
-      muscleRegionKey: region,
       intensity: intensity,
       side: side,
       color: color,
@@ -51,11 +36,8 @@ class BodyHighlightData {
   /// Body part to highlight.
   final BodyPartSlug slug;
 
-  /// Exact atomic muscle-region identity, when created with
-  /// [BodyHighlightData.muscleRegion].
-  ///
-  /// Null identifies the backwards-compatible slug highlight behavior.
-  final MuscleRegionKey? muscleRegionKey;
+  /// Exact muscle-region identity for muscle slugs, otherwise null.
+  MuscleRegionKey? get muscleRegionKey => slug.muscleRegionKey;
 
   /// Optional child region under [BodyPartSlug.hands].
   ///
@@ -103,11 +85,8 @@ class BodyHighlightData {
     Color? color,
     String? metric,
   }) {
-    return BodyHighlightData._(
+    return BodyHighlightData(
       slug: slug ?? this.slug,
-      muscleRegionKey: slug == null && handPart == null
-          ? muscleRegionKey
-          : null,
       handPart: handPart ?? this.handPart,
       intensity: intensity ?? this.intensity,
       side: side ?? this.side,
@@ -118,8 +97,7 @@ class BodyHighlightData {
 
   @override
   String toString() {
-    return 'BodyHighlightData(slug: $slug, muscleRegionKey: $muscleRegionKey, '
-        'handPart: $handPart, '
+    return 'BodyHighlightData(slug: $slug, handPart: $handPart, '
         'intensity: $intensity, '
         'side: $side, metric: $metric)';
   }
