@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'body_types.dart';
 import 'hand_types.dart';
+import 'muscle_region_types.dart';
 
 /// Highlight data for one body-part slug.
 class BodyHighlightData {
@@ -15,8 +16,28 @@ class BodyHighlightData {
     this.metric,
   });
 
+  /// Creates an exact highlight for one independently renderable muscle region.
+  factory BodyHighlightData.muscleRegion({
+    required MuscleRegionKey region,
+    double intensity = 1,
+    BodySide side = BodySide.both,
+    Color? color,
+    String? metric,
+  }) {
+    return BodyHighlightData(
+      slug: region.bodyPartSlug,
+      intensity: intensity,
+      side: side,
+      color: color,
+      metric: metric,
+    );
+  }
+
   /// Body part to highlight.
   final BodyPartSlug slug;
+
+  /// Exact muscle-region identity for muscle slugs, otherwise null.
+  MuscleRegionKey? get muscleRegionKey => slug.muscleRegionKey;
 
   /// Optional child region under [BodyPartSlug.hands].
   ///

@@ -1,3 +1,12 @@
+## Unreleased
+
+- Added stable `MuscleRegionKey` wire keys for the 19 independently selectable
+  muscle regions backed by the bundled SVG artwork.
+- Made every muscle/body slug select only its exact SVG geometry; `upperBack`
+  no longer implicitly includes trapezius.
+- Removed the deprecated `BodyPartsHeatmap` widget alias; use `AnatomyHeatmap`.
+- Documented view availability, serialization, asset limits, and regeneration.
+
 ## 0.0.1
 
 - Initial Flutter package with anatomical SVG heatmap rendering.
