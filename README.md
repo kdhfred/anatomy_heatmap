@@ -5,8 +5,8 @@
 `anatomy_heatmap` is the Flutter version / port of
 [`react-native-body-highlighter`](https://github.com/HichamELBSI/react-native-body-highlighter).
 It converts the upstream body SVG path data and outline data into Dart and adds
-Flutter `CustomPainter` rendering, deterministic muscle-to-region mapping, and
-tree-shaped hand regions (`hands -> palm/thumb/index/middle/ring/little`).
+Flutter `CustomPainter` rendering, stable muscle-region keys, and tree-shaped
+hand regions (`hand -> palm/thumb/index/middle/ring/little`).
 
 Upstream credit:
 
@@ -34,15 +34,16 @@ Example app running on an iPhone 17 Pro Max simulator:
 
 - Male and female body maps.
 - Front and back body views.
-- Body-part slug highlighting with left/right/both/common side semantics.
+- Muscle and hand highlighting with left/right/both/common side semantics.
 - Stable atomic `MuscleRegionKey` wire keys backed only by independently
   selectable bundled SVG geometry.
 - Seed-color opacity heatmap rendering for primary, secondary, or aggregate load.
 - Preset color styles, including a region-specific `muscleGroups` palette.
-- Explicit muscle-name-to-SVG-slug adapter; no fuzzy runtime inference.
-- Tree-shaped hand heatmaps: `hands` can be highlighted as a parent or split
+- Caller-owned exercise and business grouping; the package exposes renderable
+  regions without prescribing a product taxonomy.
+- Tree-shaped hand heatmaps: `hand` can be highlighted as a parent or split
   into palm, thumb, index, middle, ring, and little-finger child regions.
-- Configurable full-body hand detail level: aggregate to parent `hands` or
+- Configurable full-body hand detail level: aggregate to parent `hand` or
   render palm/finger child segments.
 - Example app follows the device/system light or dark theme and can switch
   preset styles live.
@@ -50,26 +51,27 @@ Example app running on an iPhone 17 Pro Max simulator:
 ## Usage
 
 The bundled `example/` app includes a male/female toggle, preset style selector,
-and tap-to-edit activation sliders so you can inspect how each muscle slug
+and tap-to-edit activation sliders so you can inspect how each muscle region
 responds.
 
 ```dart
 import 'package:anatomy_heatmap/anatomy_heatmap.dart';
 
-final adapter = MuscleToBodyPartAdapter();
-final mapped = adapter.mapToHighlights(
-  primaryMuscles: const ['Pectoralis', 'Triceps'],
-  secondaryMuscles: const ['Rotator Cuff', 'Forearm'],
-);
-
 AnatomyHeatmap(
   gender: BodyGender.male,
   views: const [BodyView.front, BodyView.back],
-  highlights: mapped.highlights,
+  highlights: const [
+    BodyHighlightData(region: MuscleRegionKey.chest, intensity: 1),
+    BodyHighlightData(region: MuscleRegionKey.triceps, intensity: 0.6),
+  ],
+  handHighlights: const [
+    HandHighlightData(slug: HandPartSlug.indexFinger, intensity: 0.8),
+  ],
   colorScheme: BodyHeatmapColorScheme.muscleGroups,
   handDetailLevel: HandDetailLevel.segments,
-  onPartTap: (tap) {
-    // tap.slug, tap.side, tap.view, tap.highlight?.metric
+  onRegionTap: (tap) {
+    // Exactly one of tap.muscleRegion or tap.handPart is non-null.
+    // tap.side and tap.view identify the rendered fragment.
   },
 );
 ```
@@ -80,11 +82,11 @@ In layouts without a bounded height, provide `height`:
 AnatomyHeatmap(
   height: 360,
   highlights: [
-    BodyHighlightData.muscleRegion(
+    BodyHighlightData(
       region: MuscleRegionKey.chest,
       intensity: 1,
     ),
-    BodyHighlightData.muscleRegion(
+    BodyHighlightData(
       region: MuscleRegionKey.upperBack,
       intensity: 0.45,
     ),
@@ -105,9 +107,8 @@ The canonical wire-key order is:
 `quadriceps`, `calves`, `adductors`, `tibialis`, `neck`, `abductors`.
 
 Use `muscleRegionKeyFromWire` for strict parsing or
-`tryMuscleRegionKeyFromWire` for nullable parsing. Each key exposes its
-renderer-owned `bodyPartSlug`, `label`, supported `views`, and
-`isRenderableIn(view)`.
+`tryMuscleRegionKeyFromWire` for nullable parsing. Each key exposes its `label`,
+supported `views`, and `isRenderableIn(view)`.
 
 ```dart
 final storedKey = muscleRegionKeyFromWire('upper-back');
@@ -115,14 +116,14 @@ final storedKey = muscleRegionKeyFromWire('upper-back');
 AnatomyHeatmap(
   views: const [BodyView.back],
   highlights: [
-    BodyHighlightData.muscleRegion(
+    BodyHighlightData(
       region: storedKey,
       intensity: 1,
       side: BodySide.left,
     ),
   ],
-  onPartTap: (tap) {
-    // tap.muscleRegionKey reports the exact geometry that was tapped.
+  onRegionTap: (tap) {
+    // tap.muscleRegion reports the exact muscle geometry that was tapped.
   },
 );
 ```
@@ -132,11 +133,10 @@ Front-only regions are `chest`, `abs`, `obliques`, `biceps`, `quadriceps`,
 `lower-back`, `gluteal`, `hamstring`, and `abductors`. The remaining keys have
 front and back geometry for both supported genders.
 
-Every muscle slug selects only its own SVG geometry. For example,
-`upper-back` and `trapezius` are always independent whether a highlight is
-created from `MuscleRegionKey` or the equivalent renderer-owned `BodyPartSlug`.
-`BodyPartSlug` remains the anatomy renderer's complete geometry taxonomy for
-non-muscle regions such as hands, head, hair, knees, ankles, and feet.
+Every `MuscleRegionKey` selects only its own SVG geometry. For example,
+`upper-back` and `trapezius` are always independent. Non-highlightable SVG
+geometry such as head, hair, knees, ankles, and feet remains an internal
+rendering detail rather than part of the public region taxonomy.
 
 The source artwork cannot independently render serratus anterior or
 iliopsoas/hip flexors. It also does not safely distinguish individual heads or
@@ -191,9 +191,9 @@ final scheme = BodyHeatmapColorScheme.fromPreset(
   BodyHeatmapColorPreset.muscleGroups,
   brightness: Theme.of(context).brightness,
 ).withOverrides(
-  bodyPartHeatColors: {
-    BodyPartSlug.chest: const Color(0xFFDC2626),
-    BodyPartSlug.quadriceps: const Color(0xFF16A34A),
+  muscleRegionHeatColors: {
+    MuscleRegionKey.chest: const Color(0xFFDC2626),
+    MuscleRegionKey.quadriceps: const Color(0xFF16A34A),
   },
   handPartHeatColors: {
     HandPartSlug.indexFinger: const Color(0xFF0284C7),
@@ -207,79 +207,62 @@ Use `copyWith` instead when you want to replace a color map entirely.
 
 The full `AnatomyHeatmap` can treat hands at two levels:
 
-- `HandDetailLevel.handsOnly`: renders each hand as a parent `hands` region.
-  A parent `hands` highlight controls the whole hand; if no parent highlight is
+- `HandDetailLevel.handsOnly`: renders each hand as a parent `hand` region.
+  A parent `hand` highlight controls the whole hand; if no parent highlight is
   supplied, existing palm/finger highlights are aggregated into that region.
 - `HandDetailLevel.segments`: renders palm, thumb, index, middle, ring, and
   little-finger child paths in the full body map. Exact child highlights take
-  precedence over a parent `hands` fallback so finger opacity remains adjustable.
+  precedence over a parent `hand` fallback so finger opacity remains adjustable.
 
 ```dart
 AnatomyHeatmap(
-  highlights: mapped.highlights,
+  handHighlights: const [
+    HandHighlightData(slug: HandPartSlug.hand, intensity: 0.7),
+  ],
   handDetailLevel: HandDetailLevel.handsOnly,
 );
 ```
 
-The adapter can also emit either level:
+Callers own exercise-name and business-group mappings. Convert those concepts to
+the smallest renderable keys at the product boundary:
 
 ```dart
-final mapped = MuscleToBodyPartAdapter().mapToHighlights(
-  primaryMuscles: targetMuscles,
-  secondaryMuscles: synergistMuscles,
-  handDetailLevel: HandDetailLevel.handsOnly,
-);
+const productGroups = <String, Set<MuscleRegionKey>>{
+  'push': {MuscleRegionKey.chest, MuscleRegionKey.triceps},
+};
+
+final highlights = [
+  for (final region in productGroups['push'] ?? const <MuscleRegionKey>{})
+    BodyHighlightData(region: region, intensity: 1),
+];
 ```
 
 Use `HandPartsHeatmap` when you want a dedicated zoomed-in palm/finger panel
 regardless of the full-body hand level.
 
-## Deterministic muscle adapter
-
-`MuscleToBodyPartAdapter` maps exercise metadata such as `target_muscles` and
-`synergist_muscles` into SVG body-part slugs using an explicit alias table.
-One input can map to multiple slugs: for example `Finger Flexors` maps to both
-`forearm` and `hands`. If the same slug appears in both primary and secondary
-sets, primary wins. Unknown labels are returned in `unmapped` so product tests
-can detect missing taxonomy coverage. Back labels are split so `Latissimus`,
-`Latissimus Dorsi`, and `Lats` map to `lats`, while `Rhomboids` remains
-`upperBack`, `Trapezius`/`Traps` map to `trapezius`, and `Erector Spinae`
-remains `lowerBack`. Hip-abductor labels such as
-`Gluteus Medius`, `Gluteus Minimus`, `Tensor Fasciae Latae`, and `TFL` map to
-`abductors`; `Gluteus Maximus` stays `gluteal`, and `Adductors` stays separate.
-Specific hand labels such as `Thumb`,
-`Index Finger`, `Middle Finger`, `Ring Finger`, `Pinky`, and `Palm` are emitted
-as `BodyPartSlug.hands` highlights with `handPart` populated, so the full
-`AnatomyHeatmap` can color exact child regions instead of collapsing them to the
-whole hand. Pass `handDetailLevel: HandDetailLevel.handsOnly` to
-`mapToHighlights` when your product wants to keep the data at parent-hand level.
-
 ## Segmented hand/finger heatmaps
 
 The upstream body SVG contains six `hands` fragments per side. `AnatomyHeatmap`
-classifies those fragments by geometry, so `BodyPartSlug.hands` can behave like
-a parent node with child palm/finger heatmap regions:
+classifies those fragments by geometry, so `HandPartSlug.hand` can behave like a
+parent node with child palm/finger heatmap regions:
 
 ```dart
 AnatomyHeatmap(
-  highlights: const [
+  handHighlights: const [
     // Parent hand highlight: applies to every palm/finger child unless a
     // stronger child highlight is provided.
-    BodyHighlightData(slug: BodyPartSlug.hands, intensity: 0.25),
-    BodyHighlightData(
-      slug: BodyPartSlug.hands,
-      handPart: HandPartSlug.indexFinger,
+    HandHighlightData(slug: HandPartSlug.hand, intensity: 0.25),
+    HandHighlightData(
+      slug: HandPartSlug.indexFinger,
       intensity: 1,
     ),
-    BodyHighlightData(
-      slug: BodyPartSlug.hands,
-      handPart: HandPartSlug.middleFinger,
+    HandHighlightData(
+      slug: HandPartSlug.middleFinger,
       intensity: 0.7,
     ),
   ],
-  onPartTap: (tap) {
-    // tap.slug == BodyPartSlug.hands
-    // tap.handPart is palm/thumb/indexFinger/middleFinger/ringFinger/littleFinger.
+  onRegionTap: (tap) {
+    // tap.handPart is hand/palm/thumb/indexFinger/middleFinger/ringFinger/littleFinger.
   },
 );
 ```

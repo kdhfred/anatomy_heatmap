@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'body_types.dart';
 
-/// Controls how [BodyPartSlug.hands] is represented in the full anatomy map.
+/// Controls how hands are represented in the full anatomy map.
 enum HandDetailLevel {
   /// Render and hit-test each hand as one parent body region.
   ///
@@ -18,16 +18,18 @@ enum HandDetailLevel {
 
 /// Hand/finger semantic labels exposed by the segmented hand heatmap.
 enum HandPartSlug {
+  /// Aggregate key for the full rendered hand.
+  hand,
+
   palm,
   thumb,
   indexFinger,
   middleFinger,
   ringFinger,
   littleFinger,
-  wrist,
 }
 
-/// Rendered child regions under [BodyPartSlug.hands].
+/// Exact hand regions backed by separate SVG fragments.
 const renderedHandPartSlugs = <HandPartSlug>[
   HandPartSlug.palm,
   HandPartSlug.thumb,
@@ -37,10 +39,10 @@ const renderedHandPartSlugs = <HandPartSlug>[
   HandPartSlug.littleFinger,
 ];
 
-/// Tree helper for anatomy body regions that expose child heatmap regions.
-extension BodyPartHandTreeX on BodyPartSlug {
-  /// Child hand regions for [BodyPartSlug.hands]. Other body regions have none.
-  List<HandPartSlug> get handChildren => this == BodyPartSlug.hands
+/// Tree helper for the aggregate hand region.
+extension HandPartSlugTreeX on HandPartSlug {
+  /// Exact child segments for [HandPartSlug.hand].
+  List<HandPartSlug> get children => this == HandPartSlug.hand
       ? renderedHandPartSlugs
       : const <HandPartSlug>[];
 }
@@ -49,13 +51,13 @@ extension BodyPartHandTreeX on BodyPartSlug {
 extension HandPartSlugX on HandPartSlug {
   /// A short human-readable label.
   String get label => switch (this) {
+    HandPartSlug.hand => 'Hand',
     HandPartSlug.palm => 'Palm',
     HandPartSlug.thumb => 'Thumb',
     HandPartSlug.indexFinger => 'Index',
     HandPartSlug.middleFinger => 'Middle',
     HandPartSlug.ringFinger => 'Ring',
     HandPartSlug.littleFinger => 'Little',
-    HandPartSlug.wrist => 'Wrist',
   };
 }
 

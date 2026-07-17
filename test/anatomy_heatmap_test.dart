@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:anatomy_heatmap/anatomy_heatmap.dart';
+import 'package:anatomy_heatmap/src/body_render_region.dart';
 import 'package:anatomy_heatmap/src/data/body_svg_asset.dart';
 import 'package:anatomy_heatmap/src/data/body_svg_assets.dart';
 import 'package:flutter/widgets.dart';
@@ -10,22 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_drawing/path_drawing.dart';
 
 void main() {
-  group('BodyPartSlug', () {
-    test('exposes lats as a stable public slug', () {
-      expect(BodyPartSlug.lats.upstreamSlug, 'lats');
-      expect(BodyPartSlug.lats.label, 'Lats');
-      expect(bodyPartSlugFromUpstream('lats'), BodyPartSlug.lats);
-    });
-
-    test('exposes abductors as a stable public slug', () {
-      expect(BodyPartSlug.abductors.upstreamSlug, 'abductors');
-      expect(BodyPartSlug.abductors.label, 'Abductors');
-      expect(bodyPartSlugFromUpstream('abductors'), BodyPartSlug.abductors);
-    });
-  });
-
-  group('MuscleRegionKey', () {
-    test('exposes stable ordered wire keys and strict parsing', () {
+  group('public anatomy region contract', () {
+    test('exposes stable ordered muscle wire keys and strict parsing', () {
       expect(MuscleRegionKey.values.map((region) => region.wireKey), const [
         'chest',
         'abs',
@@ -51,7 +38,6 @@ void main() {
       for (final region in MuscleRegionKey.values) {
         expect(muscleRegionKeyFromWire(region.wireKey), region);
         expect(tryMuscleRegionKeyFromWire(region.wireKey), region);
-        expect(region.bodyPartSlug.muscleRegionKey, region);
       }
       expect(tryMuscleRegionKeyFromWire('upperBack'), isNull);
       expect(
@@ -60,23 +46,10 @@ void main() {
       );
     });
 
-    test('excludes non-muscle body and hand regions', () {
-      for (final slug in const [
-        BodyPartSlug.hands,
-        BodyPartSlug.head,
-        BodyPartSlug.feet,
-        BodyPartSlug.ankles,
-        BodyPartSlug.knees,
-        BodyPartSlug.hair,
-      ]) {
-        expect(slug.muscleRegionKey, isNull);
-      }
-    });
-
-    test('view availability matches bundled assets for both genders', () {
+    test('maps every public muscle region to bundled geometry', () {
       for (final asset in bodySvgAssets) {
         final actual = asset.parts
-            .map((part) => part.slug.muscleRegionKey)
+            .map((part) => part.slug.muscleRegion)
             .nonNulls
             .toSet();
         final expected = MuscleRegionKey.values
@@ -91,187 +64,39 @@ void main() {
       }
     });
 
-    test('muscle identity always derives from the selected body slug', () {
-      final copied = BodyHighlightData.muscleRegion(
+    test('keeps decorative and hand render groups outside muscle contract', () {
+      for (final region in const [
+        BodyRenderRegion.hands,
+        BodyRenderRegion.head,
+        BodyRenderRegion.feet,
+        BodyRenderRegion.ankles,
+        BodyRenderRegion.knees,
+        BodyRenderRegion.hair,
+      ]) {
+        expect(region.muscleRegion, isNull);
+      }
+    });
+
+    test('muscle highlight identity is public and immutable by default', () {
+      final copied = const BodyHighlightData(
         region: MuscleRegionKey.upperBack,
         intensity: 1,
       ).copyWith(intensity: 0.4);
 
-      expect(copied.slug, BodyPartSlug.upperBack);
-      expect(copied.muscleRegionKey, MuscleRegionKey.upperBack);
+      expect(copied.region, MuscleRegionKey.upperBack);
       expect(copied.intensity, 0.4);
       expect(
-        copied.copyWith(slug: BodyPartSlug.chest).muscleRegionKey,
+        copied.copyWith(region: MuscleRegionKey.chest).region,
         MuscleRegionKey.chest,
       );
     });
-  });
 
-  group('MuscleToBodyPartAdapter', () {
-    test('maps seeded aliases correctly', () {
-      final adapter = MuscleToBodyPartAdapter();
+    test('barrel omits renderer and business taxonomy exports', () {
+      final barrel = File('lib/anatomy_heatmap.dart').readAsStringSync();
 
-      final result = adapter.mapPrimarySecondary(
-        primaryMuscles: ['Pectoralis', 'Lats', 'Finger Flexors'],
-        secondaryMuscles: ['Rotator Cuff', 'Soleus', 'Obliques'],
-      );
-
-      expect(result.primary, contains(BodyPartSlug.chest));
-      expect(result.primary, contains(BodyPartSlug.lats));
-      expect(result.primary, contains(BodyPartSlug.forearm));
-      expect(result.primary, contains(BodyPartSlug.hands));
-      expect(result.secondary, contains(BodyPartSlug.deltoids));
-      expect(result.secondary, contains(BodyPartSlug.calves));
-      expect(result.secondary, contains(BodyPartSlug.obliques));
-      expect(result.unmapped, isEmpty);
-    });
-
-    test('maps back aliases to split taxonomy', () {
-      final adapter = MuscleToBodyPartAdapter();
-
-      final lats = adapter.mapPrimarySecondary(
-        primaryMuscles: ['Latissimus', 'Latissimus Dorsi', 'Lats'],
-        secondaryMuscles: const [],
-      );
-      expect(lats.primary, {BodyPartSlug.lats});
-
-      final traps = adapter.mapPrimarySecondary(
-        primaryMuscles: ['Trapezius', 'Traps'],
-        secondaryMuscles: const [],
-      );
-      expect(traps.primary, {BodyPartSlug.trapezius});
-
-      final scapularStabilizers = adapter.mapPrimarySecondary(
-        primaryMuscles: [
-          'Scapular stabilizers',
-          'Scapular stabilisers',
-          'Rhomboids',
-          'Upper Back',
-          'Teres',
-        ],
-        secondaryMuscles: const [],
-      );
-      expect(scapularStabilizers.primary, {BodyPartSlug.upperBack});
-
-      final back = adapter.mapPrimarySecondary(
-        primaryMuscles: ['Rhomboids', 'Erector Spinae'],
-        secondaryMuscles: const [],
-      );
-      expect(back.primary, {BodyPartSlug.upperBack, BodyPartSlug.lowerBack});
-    });
-
-    test('maps gluteal, abductor, and adductor aliases distinctly', () {
-      final adapter = MuscleToBodyPartAdapter();
-
-      final abductors = adapter.mapPrimarySecondary(
-        primaryMuscles: const [
-          'Abductor',
-          'Abductors',
-          'Hip Abductors',
-          'Gluteus Medius',
-          'Gluteus Minimus',
-          'Tensor Fasciae Latae',
-          'TFL',
-        ],
-        secondaryMuscles: const [],
-      );
-      expect(abductors.primary, {BodyPartSlug.abductors});
-
-      final gluteal = adapter.mapPrimarySecondary(
-        primaryMuscles: const ['Glutes', 'Gluteus', 'Gluteus Maximus'],
-        secondaryMuscles: const [],
-      );
-      expect(gluteal.primary, {BodyPartSlug.gluteal});
-
-      final adductors = adapter.mapPrimarySecondary(
-        primaryMuscles: const ['Adductor', 'Adductors'],
-        secondaryMuscles: const [],
-      );
-      expect(adductors.primary, {BodyPartSlug.adductors});
-    });
-
-    test('primary wins over secondary on overlap', () {
-      final result = MuscleToBodyPartAdapter().mapPrimarySecondary(
-        primaryMuscles: ['Chest'],
-        secondaryMuscles: ['Pecs', 'Triceps'],
-      );
-
-      expect(result.primary, contains(BodyPartSlug.chest));
-      expect(result.secondary, isNot(contains(BodyPartSlug.chest)));
-      expect(result.secondary, contains(BodyPartSlug.triceps));
-    });
-
-    test('unmapped labels are returned instead of swallowed', () {
-      final result = MuscleToBodyPartAdapter().mapPrimarySecondary(
-        primaryMuscles: ['Mystery Muscle'],
-        secondaryMuscles: ['Unknown Stabilizer'],
-      );
-
-      expect(result.unmapped, {'Mystery Muscle', 'Unknown Stabilizer'});
-    });
-
-    test('keeps specific hand labels as hand child highlights', () {
-      final mapped = MuscleToBodyPartAdapter().mapToHighlights(
-        primaryMuscles: ['Thumb', 'Index Finger'],
-        secondaryMuscles: ['Pinky'],
-      );
-
-      expect(mapped.result.primary, contains(BodyPartSlug.hands));
-      expect(mapped.result.primary, contains(BodyPartSlug.forearm));
-      expect(mapped.result.secondary, isNot(contains(BodyPartSlug.hands)));
-      expect(
-        mapped.highlights,
-        contains(
-          isA<BodyHighlightData>()
-              .having((data) => data.slug, 'slug', BodyPartSlug.hands)
-              .having((data) => data.handPart, 'handPart', HandPartSlug.thumb)
-              .having((data) => data.intensity, 'intensity', 1),
-        ),
-      );
-      expect(
-        mapped.highlights,
-        contains(
-          isA<BodyHighlightData>()
-              .having((data) => data.slug, 'slug', BodyPartSlug.hands)
-              .having(
-                (data) => data.handPart,
-                'handPart',
-                HandPartSlug.indexFinger,
-              ),
-        ),
-      );
-      expect(
-        mapped.highlights.where(
-          (data) => data.slug == BodyPartSlug.hands && data.handPart == null,
-        ),
-        isEmpty,
-      );
-    });
-
-    test('can collapse specific hand labels to parent hands highlights', () {
-      final mapped = MuscleToBodyPartAdapter().mapToHighlights(
-        primaryMuscles: ['Thumb', 'Index Finger'],
-        secondaryMuscles: ['Pinky'],
-        handDetailLevel: HandDetailLevel.handsOnly,
-      );
-
-      expect(mapped.result.primary, contains(BodyPartSlug.hands));
-      expect(mapped.result.primary, contains(BodyPartSlug.forearm));
-      expect(mapped.result.secondary, isNot(contains(BodyPartSlug.hands)));
-      expect(
-        mapped.highlights.where((data) => data.slug == BodyPartSlug.hands),
-        contains(
-          isA<BodyHighlightData>()
-              .having((data) => data.handPart, 'handPart', isNull)
-              .having((data) => data.intensity, 'intensity', 1),
-        ),
-      );
-      expect(
-        mapped.highlights.where(
-          (data) => data.slug == BodyPartSlug.hands && data.handPart != null,
-        ),
-        isEmpty,
-      );
+      expect(barrel, isNot(contains('body_render_region.dart')));
+      expect(barrel, isNot(contains('muscle_to_body_part_adapter.dart')));
+      expect(barrel, isNot(contains('BodyPartSlug')));
     });
   });
 
@@ -287,42 +112,20 @@ void main() {
       expect(scheme.colorForIntensity(2).a, closeTo(0.92, 0.01));
     });
 
-    test('uses dark navy for inactive hair paths', () {
-      const scheme = BodyHeatmapColorScheme.redLoad;
-
-      expect(scheme.fillFor(null, slug: BodyPartSlug.hair), scheme.hairFill);
-      expect(scheme.hairFill, const Color(0xFF0B1220));
-      expect(
-        scheme.fillFor(null, slug: BodyPartSlug.head),
-        scheme.inactiveFill,
-      );
-      expect(
-        scheme.fillFor(
-          const BodyHighlightData(slug: BodyPartSlug.hair, intensity: 0.5),
-          slug: BodyPartSlug.hair,
-        ),
-        isNot(scheme.hairFill),
-      );
-    });
-
-    test('muscle group preset uses region and hand-part colors', () {
+    test('muscle group preset uses public region and hand keys', () {
       const scheme = BodyHeatmapColorScheme.muscleGroups;
 
       final chest = scheme.fillFor(
-        const BodyHighlightData(slug: BodyPartSlug.chest, intensity: 1),
-        slug: BodyPartSlug.chest,
+        const BodyHighlightData(region: MuscleRegionKey.chest, intensity: 1),
       );
       final quads = scheme.fillFor(
-        const BodyHighlightData(slug: BodyPartSlug.quadriceps, intensity: 1),
-        slug: BodyPartSlug.quadriceps,
-      );
-      final index = scheme.fillFor(
         const BodyHighlightData(
-          slug: BodyPartSlug.hands,
-          handPart: HandPartSlug.indexFinger,
+          region: MuscleRegionKey.quadriceps,
           intensity: 1,
         ),
-        slug: BodyPartSlug.hands,
+      );
+      final index = scheme.fillForHand(
+        const HandHighlightData(slug: HandPartSlug.indexFinger, intensity: 1),
       );
       final palm = scheme.fillForHand(
         const HandHighlightData(slug: HandPartSlug.palm, intensity: 1),
@@ -334,7 +137,25 @@ void main() {
       expect(quads.a, closeTo(0.92, 0.01));
       expect(index.a, closeTo(0.92, 0.01));
       expect(palm.a, closeTo(0.92, 0.01));
-      expect(scheme.bodyPartHeatColors[BodyPartSlug.abductors], isNotNull);
+      expect(
+        scheme.muscleRegionHeatColors.keys.toSet(),
+        MuscleRegionKey.values.toSet(),
+      );
+      expect(scheme.handPartHeatColors[HandPartSlug.hand], isNotNull);
+    });
+
+    test('per-highlight color overrides the configured region color', () {
+      const custom = Color(0xFF123456);
+      const scheme = BodyHeatmapColorScheme.muscleGroups;
+      final resolved = scheme.fillFor(
+        const BodyHighlightData(
+          region: MuscleRegionKey.chest,
+          intensity: 1,
+          color: custom,
+        ),
+      );
+
+      expect(resolved, custom.withValues(alpha: 0.92));
     });
 
     test('muscle group preset has light and dark brightness variants', () {
@@ -353,14 +174,6 @@ void main() {
         same(BodyHeatmapColorScheme.redLoadDark),
       );
       expect(
-        BodyHeatmapColorScheme.redLoadForBrightness(Brightness.light),
-        same(BodyHeatmapColorScheme.redLoad),
-      );
-      expect(
-        BodyHeatmapColorScheme.redLoadForBrightness(Brightness.dark),
-        same(BodyHeatmapColorScheme.redLoadDark),
-      );
-      expect(
         BodyHeatmapColorScheme.fromPreset(
           BodyHeatmapColorPreset.muscleGroups,
           brightness: Brightness.light,
@@ -375,16 +188,8 @@ void main() {
         same(BodyHeatmapColorScheme.muscleGroupsDark),
       );
       expect(
-        BodyHeatmapColorScheme.muscleGroupsForBrightness(Brightness.light),
-        same(BodyHeatmapColorScheme.muscleGroups),
-      );
-      expect(
-        BodyHeatmapColorScheme.muscleGroupsForBrightness(Brightness.dark),
-        same(BodyHeatmapColorScheme.muscleGroupsDark),
-      );
-      expect(
-        BodyHeatmapColorScheme.muscleGroupsDark.bodyPartHeatColors,
-        same(BodyHeatmapColorScheme.muscleGroups.bodyPartHeatColors),
+        BodyHeatmapColorScheme.muscleGroupsDark.muscleRegionHeatColors,
+        same(BodyHeatmapColorScheme.muscleGroups.muscleRegionHeatColors),
       );
       expect(
         BodyHeatmapColorScheme.muscleGroupsDark.handPartHeatColors,
@@ -398,15 +203,6 @@ void main() {
 
     test('red load preset can be seeded from a custom hue', () {
       const blueSeed = Color(0xFF2563EB);
-
-      expect(
-        BodyHeatmapColorScheme.fromPreset(
-          BodyHeatmapColorPreset.redLoad,
-          redLoadSeedColor: BodyHeatmapColorScheme.defaultRedLoadSeedColor,
-        ),
-        same(BodyHeatmapColorScheme.redLoad),
-      );
-
       final seededLight = BodyHeatmapColorScheme.fromPreset(
         BodyHeatmapColorPreset.redLoad,
         redLoadSeedColor: blueSeed,
@@ -416,11 +212,6 @@ void main() {
         seededLight.inactiveFill,
         BodyHeatmapColorScheme.redLoad.inactiveFill,
       );
-      expect(
-        seededLight.borderColor,
-        BodyHeatmapColorScheme.redLoad.borderColor,
-      );
-      expect(seededLight, isNot(same(BodyHeatmapColorScheme.redLoad)));
 
       final seededDark = BodyHeatmapColorScheme.redLoadFromSeed(
         blueSeed,
@@ -431,68 +222,42 @@ void main() {
         seededDark.inactiveFill,
         BodyHeatmapColorScheme.redLoadDark.inactiveFill,
       );
-      expect(
-        seededDark.borderColor,
-        BodyHeatmapColorScheme.redLoadDark.borderColor,
-      );
     });
 
-    test(
-      'preset color settings can be injected without replacing defaults',
-      () {
-        const customChest = Color(0xFF6D28D9);
-        const customIndex = Color(0xFF14B8A6);
+    test('preset color overrides merge without replacing defaults', () {
+      const customChest = Color(0xFF6D28D9);
+      const customIndex = Color(0xFF14B8A6);
 
-        final scheme =
-            BodyHeatmapColorScheme.fromPreset(
-              BodyHeatmapColorPreset.muscleGroups,
-              brightness: Brightness.dark,
-            ).withOverrides(
-              inactiveFill: const Color(0xFF101010),
-              bodyPartHeatColors: const {BodyPartSlug.chest: customChest},
-              handPartHeatColors: const {HandPartSlug.indexFinger: customIndex},
-            );
+      final scheme =
+          BodyHeatmapColorScheme.fromPreset(
+            BodyHeatmapColorPreset.muscleGroups,
+            brightness: Brightness.dark,
+          ).withOverrides(
+            inactiveFill: const Color(0xFF101010),
+            muscleRegionHeatColors: const {MuscleRegionKey.chest: customChest},
+            handPartHeatColors: const {HandPartSlug.indexFinger: customIndex},
+          );
 
-        expect(scheme.inactiveFill, const Color(0xFF101010));
-        expect(scheme.bodyPartHeatColors[BodyPartSlug.chest], customChest);
-        expect(
-          scheme.bodyPartHeatColors[BodyPartSlug.quadriceps],
-          BodyHeatmapColorScheme
-              .muscleGroupsDark
-              .bodyPartHeatColors[BodyPartSlug.quadriceps],
-        );
-        expect(
-          scheme.handPartHeatColors[HandPartSlug.indexFinger],
-          customIndex,
-        );
-        expect(
-          scheme.handPartHeatColors[HandPartSlug.palm],
-          BodyHeatmapColorScheme
-              .muscleGroupsDark
-              .handPartHeatColors[HandPartSlug.palm],
-        );
+      expect(scheme.inactiveFill, const Color(0xFF101010));
+      expect(scheme.muscleRegionHeatColors[MuscleRegionKey.chest], customChest);
+      expect(
+        scheme.muscleRegionHeatColors[MuscleRegionKey.quadriceps],
+        BodyHeatmapColorScheme
+            .muscleGroupsDark
+            .muscleRegionHeatColors[MuscleRegionKey.quadriceps],
+      );
+      expect(scheme.handPartHeatColors[HandPartSlug.indexFinger], customIndex);
 
-        final replaced = scheme.copyWith(bodyPartHeatColors: const {});
-        expect(replaced.bodyPartHeatColors, isEmpty);
-        expect(replaced.handPartHeatColors, isNotEmpty);
-      },
-    );
+      final replaced = scheme.copyWith(muscleRegionHeatColors: const {});
+      expect(replaced.muscleRegionHeatColors, isEmpty);
+      expect(replaced.handPartHeatColors, isNotEmpty);
+    });
   });
 
   group('hand tree taxonomy', () {
-    test('exposes rendered hand children under hands', () {
-      expect(
-        BodyPartSlug.hands.handChildren,
-        containsAll(const [
-          HandPartSlug.palm,
-          HandPartSlug.thumb,
-          HandPartSlug.indexFinger,
-          HandPartSlug.middleFinger,
-          HandPartSlug.ringFinger,
-          HandPartSlug.littleFinger,
-        ]),
-      );
-      expect(BodyPartSlug.forearm.handChildren, isEmpty);
+    test('exposes exact children under the aggregate hand region', () {
+      expect(HandPartSlug.hand.children, containsAll(renderedHandPartSlugs));
+      expect(HandPartSlug.palm.children, isEmpty);
     });
   });
 
@@ -521,40 +286,40 @@ void main() {
 
         expect(
           front.parts.map((part) => part.slug),
-          containsAll([BodyPartSlug.neck, BodyPartSlug.trapezius]),
+          containsAll([BodyRenderRegion.neck, BodyRenderRegion.trapezius]),
         );
         expect(
           back.parts.map((part) => part.slug),
-          contains(BodyPartSlug.trapezius),
+          contains(BodyRenderRegion.trapezius),
         );
         expect(
           back.parts.map((part) => part.slug),
-          isNot(contains(BodyPartSlug.neck)),
+          isNot(contains(BodyRenderRegion.neck)),
         );
 
         final lats = back.parts.singleWhere(
-          (part) => part.slug == BodyPartSlug.lats,
+          (part) => part.slug == BodyRenderRegion.lats,
         );
         expect(lats.common, isEmpty);
         expect(lats.left, hasLength(1));
         expect(lats.right, hasLength(1));
 
         final trapezius = back.parts.singleWhere(
-          (part) => part.slug == BodyPartSlug.trapezius,
+          (part) => part.slug == BodyRenderRegion.trapezius,
         );
         expect(trapezius.common, isEmpty);
         expect(trapezius.left, hasLength(2));
         expect(trapezius.right, hasLength(2));
 
         final upperBack = back.parts.singleWhere(
-          (part) => part.slug == BodyPartSlug.upperBack,
+          (part) => part.slug == BodyRenderRegion.upperBack,
         );
         expect(upperBack.common, isEmpty);
         expect(upperBack.left, hasLength(gender == BodyGender.male ? 2 : 1));
         expect(upperBack.right, hasLength(gender == BodyGender.male ? 2 : 1));
 
         final lowerBack = back.parts.singleWhere(
-          (part) => part.slug == BodyPartSlug.lowerBack,
+          (part) => part.slug == BodyRenderRegion.lowerBack,
         );
         expect(lowerBack.common, isEmpty);
         expect(lowerBack.left, hasLength(2));
@@ -571,18 +336,18 @@ void main() {
 
           expect(
             front.parts.map((part) => part.slug),
-            isNot(contains(BodyPartSlug.abductors)),
+            isNot(contains(BodyRenderRegion.abductors)),
           );
 
           final abductors = back.parts.singleWhere(
-            (part) => part.slug == BodyPartSlug.abductors,
+            (part) => part.slug == BodyRenderRegion.abductors,
           );
           expect(abductors.common, isEmpty);
           expect(abductors.left, hasLength(1));
           expect(abductors.right, hasLength(1));
 
           final gluteal = back.parts.singleWhere(
-            (part) => part.slug == BodyPartSlug.gluteal,
+            (part) => part.slug == BodyRenderRegion.gluteal,
           );
           expect(gluteal.common, isEmpty);
           expect(gluteal.left, hasLength(1));
@@ -592,21 +357,21 @@ void main() {
     );
   });
 
-  testWidgets('upperBack body slug selects only upper-back geometry', (
+  testWidgets('upperBack region selects only upper-back geometry', (
     tester,
   ) async {
     final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
     final upperBack = asset.parts.singleWhere(
-      (part) => part.slug == BodyPartSlug.upperBack,
+      (part) => part.slug == BodyRenderRegion.upperBack,
     );
     final trapezius = asset.parts.singleWhere(
-      (part) => part.slug == BodyPartSlug.trapezius,
+      (part) => part.slug == BodyRenderRegion.trapezius,
     );
 
     final taps = await _tapBackHeatmap(
       tester,
       highlights: const [
-        BodyHighlightData(slug: BodyPartSlug.upperBack, intensity: 1),
+        BodyHighlightData(region: MuscleRegionKey.upperBack, intensity: 1),
       ],
       svgPoints: [
         _pathInteriorPoint(upperBack.left.first),
@@ -615,12 +380,10 @@ void main() {
     );
 
     expect(taps, hasLength(2));
-    expect(taps[0].slug, BodyPartSlug.upperBack);
-    expect(taps[0].highlight?.slug, BodyPartSlug.upperBack);
-    expect(taps[0].muscleRegionKey, MuscleRegionKey.upperBack);
-    expect(taps[1].slug, BodyPartSlug.trapezius);
-    expect(taps[1].muscleRegionKey, MuscleRegionKey.trapezius);
-    expect(taps[1].highlight, isNull);
+    expect(taps[0].muscleRegion, MuscleRegionKey.upperBack);
+    expect(taps[0].muscleHighlight?.region, MuscleRegionKey.upperBack);
+    expect(taps[1].muscleRegion, MuscleRegionKey.trapezius);
+    expect(taps[1].muscleHighlight, isNull);
   });
 
   testWidgets(
@@ -628,14 +391,12 @@ void main() {
     (tester) async {
       final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
       final upperBack = asset.parts.singleWhere(
-        (part) => part.slug == BodyPartSlug.upperBack,
+        (part) => part.slug == BodyRenderRegion.upperBack,
       );
       final trapezius = asset.parts.singleWhere(
-        (part) => part.slug == BodyPartSlug.trapezius,
+        (part) => part.slug == BodyRenderRegion.trapezius,
       );
-      final highlight = BodyHighlightData.muscleRegion(
-        region: MuscleRegionKey.upperBack,
-      );
+      final highlight = BodyHighlightData(region: MuscleRegionKey.upperBack);
 
       final taps = await _tapBackHeatmap(
         tester,
@@ -647,10 +408,10 @@ void main() {
       );
 
       expect(taps, hasLength(2));
-      expect(taps[0].muscleRegionKey, MuscleRegionKey.upperBack);
-      expect(taps[0].highlight?.muscleRegionKey, MuscleRegionKey.upperBack);
-      expect(taps[1].muscleRegionKey, MuscleRegionKey.trapezius);
-      expect(taps[1].highlight, isNull);
+      expect(taps[0].muscleRegion, MuscleRegionKey.upperBack);
+      expect(taps[0].muscleHighlight?.region, MuscleRegionKey.upperBack);
+      expect(taps[1].muscleRegion, MuscleRegionKey.trapezius);
+      expect(taps[1].muscleHighlight, isNull);
     },
   );
 
@@ -659,16 +420,13 @@ void main() {
   ) async {
     final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
     final lats = asset.parts.singleWhere(
-      (part) => part.slug == BodyPartSlug.lats,
+      (part) => part.slug == BodyRenderRegion.lats,
     );
 
     final taps = await _tapBackHeatmap(
       tester,
       highlights: [
-        BodyHighlightData.muscleRegion(
-          region: MuscleRegionKey.lats,
-          side: BodySide.left,
-        ),
+        BodyHighlightData(region: MuscleRegionKey.lats, side: BodySide.left),
       ],
       svgPoints: [
         _pathInteriorPoint(lats.left.single),
@@ -677,8 +435,8 @@ void main() {
     );
 
     expect(taps, hasLength(2));
-    expect(taps[0].highlight?.muscleRegionKey, MuscleRegionKey.lats);
-    expect(taps[1].highlight, isNull);
+    expect(taps[0].muscleHighlight?.region, MuscleRegionKey.lats);
+    expect(taps[1].muscleHighlight, isNull);
   });
 
   testWidgets('trapezius and upperBack highlights remain independent', (
@@ -686,10 +444,10 @@ void main() {
   ) async {
     final asset = bodySvgAssetFor(BodyGender.male, BodyView.back);
     final upperBack = asset.parts.singleWhere(
-      (part) => part.slug == BodyPartSlug.upperBack,
+      (part) => part.slug == BodyRenderRegion.upperBack,
     );
     final trapezius = asset.parts.singleWhere(
-      (part) => part.slug == BodyPartSlug.trapezius,
+      (part) => part.slug == BodyRenderRegion.trapezius,
     );
 
     const upperBackColor = Color(0xFF00A060);
@@ -698,12 +456,12 @@ void main() {
       tester,
       highlights: const [
         BodyHighlightData(
-          slug: BodyPartSlug.upperBack,
+          region: MuscleRegionKey.upperBack,
           intensity: 1,
           color: upperBackColor,
         ),
         BodyHighlightData(
-          slug: BodyPartSlug.trapezius,
+          region: MuscleRegionKey.trapezius,
           intensity: 1,
           color: trapeziusColor,
         ),
@@ -715,12 +473,12 @@ void main() {
     );
 
     expect(taps, hasLength(2));
-    expect(taps[0].slug, BodyPartSlug.upperBack);
-    expect(taps[0].highlight?.slug, BodyPartSlug.upperBack);
-    expect(taps[0].highlight?.color, upperBackColor);
-    expect(taps[1].slug, BodyPartSlug.trapezius);
-    expect(taps[1].highlight?.slug, BodyPartSlug.trapezius);
-    expect(taps[1].highlight?.color, trapeziusColor);
+    expect(taps[0].muscleRegion, MuscleRegionKey.upperBack);
+    expect(taps[0].muscleHighlight?.region, MuscleRegionKey.upperBack);
+    expect(taps[0].muscleHighlight?.color, upperBackColor);
+    expect(taps[1].muscleRegion, MuscleRegionKey.trapezius);
+    expect(taps[1].muscleHighlight?.region, MuscleRegionKey.trapezius);
+    expect(taps[1].muscleHighlight?.color, trapeziusColor);
   });
 
   testWidgets('widget smoke test renders front/back with a highlight', (
@@ -736,9 +494,12 @@ void main() {
             gender: BodyGender.male,
             views: [BodyView.front, BodyView.back],
             highlights: [
-              BodyHighlightData(slug: BodyPartSlug.chest, intensity: 0.8),
-              BodyHighlightData(slug: BodyPartSlug.lats, intensity: 0.6),
-              BodyHighlightData(slug: BodyPartSlug.upperBack, intensity: 0.45),
+              BodyHighlightData(region: MuscleRegionKey.chest, intensity: 0.8),
+              BodyHighlightData(region: MuscleRegionKey.lats, intensity: 0.6),
+              BodyHighlightData(
+                region: MuscleRegionKey.upperBack,
+                intensity: 0.45,
+              ),
             ],
           ),
         ),
@@ -750,7 +511,7 @@ void main() {
   });
 
   testWidgets('tap callback reports left and right body sides', (tester) async {
-    final taps = <BodyPartTap>[];
+    final taps = <AnatomyRegionTap>[];
 
     await tester.pumpWidget(
       Directionality(
@@ -764,12 +525,12 @@ void main() {
               views: const [BodyView.front],
               highlights: const [
                 BodyHighlightData(
-                  slug: BodyPartSlug.chest,
+                  region: MuscleRegionKey.chest,
                   side: BodySide.left,
                   intensity: 0.8,
                 ),
               ],
-              onPartTap: taps.add,
+              onRegionTap: taps.add,
             ),
           ),
         ),
@@ -783,13 +544,16 @@ void main() {
     await tester.tapAt(topLeft + const Offset(116, 112));
     await tester.pump();
 
-    expect(taps.map((tap) => tap.slug), everyElement(BodyPartSlug.chest));
+    expect(
+      taps.map((tap) => tap.muscleRegion),
+      everyElement(MuscleRegionKey.chest),
+    );
     expect(
       taps.map((tap) => tap.side),
       containsAll([BodySide.left, BodySide.right]),
     );
-    expect(taps.first.highlight?.side, BodySide.left);
-    expect(taps.last.highlight, isNull);
+    expect(taps.first.muscleHighlight?.side, BodySide.left);
+    expect(taps.last.muscleHighlight, isNull);
   });
 
   testWidgets('female front/back smoke test renders', (tester) async {
@@ -803,8 +567,11 @@ void main() {
             gender: BodyGender.female,
             views: [BodyView.front, BodyView.back],
             highlights: [
-              BodyHighlightData(slug: BodyPartSlug.chest, intensity: 0.8),
-              BodyHighlightData(slug: BodyPartSlug.gluteal, intensity: 0.45),
+              BodyHighlightData(region: MuscleRegionKey.chest, intensity: 0.8),
+              BodyHighlightData(
+                region: MuscleRegionKey.gluteal,
+                intensity: 0.45,
+              ),
             ],
           ),
         ),
@@ -864,7 +631,7 @@ void main() {
     final hand = bodySvgAssetFor(
       BodyGender.male,
       BodyView.front,
-    ).parts.firstWhere((part) => part.slug == BodyPartSlug.hands);
+    ).parts.firstWhere((part) => part.slug == BodyRenderRegion.hands);
     final pathsBySlug = <HandPartSlug, String>{
       HandPartSlug.palm: hand.left[0],
       HandPartSlug.thumb: hand.left[1],
@@ -910,7 +677,7 @@ void main() {
   testWidgets('full anatomy heatmap reports exact hand child segments', (
     tester,
   ) async {
-    final taps = <BodyPartTap>[];
+    final taps = <AnatomyRegionTap>[];
 
     await tester.pumpWidget(
       Directionality(
@@ -922,15 +689,11 @@ void main() {
             child: AnatomyHeatmap(
               gender: BodyGender.male,
               views: const [BodyView.front],
-              highlights: const [
-                BodyHighlightData(slug: BodyPartSlug.hands, intensity: 1),
-                BodyHighlightData(
-                  slug: BodyPartSlug.hands,
-                  handPart: HandPartSlug.indexFinger,
-                  intensity: 0,
-                ),
+              handHighlights: const [
+                HandHighlightData(slug: HandPartSlug.hand, intensity: 1),
+                HandHighlightData(slug: HandPartSlug.indexFinger, intensity: 0),
               ],
-              onPartTap: taps.add,
+              onRegionTap: taps.add,
             ),
           ),
         ),
@@ -939,7 +702,7 @@ void main() {
 
     final asset = bodySvgAssetFor(BodyGender.male, BodyView.front);
     final hand = asset.parts.firstWhere(
-      (part) => part.slug == BodyPartSlug.hands,
+      (part) => part.slug == BodyRenderRegion.hands,
     );
     final indexFingerCenter = parseSvgPathData(hand.left[2]).getBounds().center;
     final paintFinder = find.byType(CustomPaint).first;
@@ -964,16 +727,15 @@ void main() {
     await tester.tapAt(toGlobal(indexFingerCenter));
     await tester.pump();
 
-    expect(taps.single.slug, BodyPartSlug.hands);
     expect(taps.single.handPart, HandPartSlug.indexFinger);
-    expect(taps.single.highlight?.handPart, HandPartSlug.indexFinger);
-    expect(taps.single.highlight?.normalizedIntensity, 0);
+    expect(taps.single.handHighlight?.slug, HandPartSlug.indexFinger);
+    expect(taps.single.handHighlight?.normalizedIntensity, 0);
   });
 
   testWidgets(
     'full anatomy heatmap lets parent hands zero control collapsed hands',
     (tester) async {
-      final taps = <BodyPartTap>[];
+      final taps = <AnatomyRegionTap>[];
 
       await tester.pumpWidget(
         Directionality(
@@ -986,15 +748,14 @@ void main() {
                 gender: BodyGender.male,
                 views: const [BodyView.front],
                 handDetailLevel: HandDetailLevel.handsOnly,
-                highlights: const [
-                  BodyHighlightData(slug: BodyPartSlug.hands, intensity: 0),
-                  BodyHighlightData(
-                    slug: BodyPartSlug.hands,
-                    handPart: HandPartSlug.indexFinger,
+                handHighlights: const [
+                  HandHighlightData(slug: HandPartSlug.hand, intensity: 0),
+                  HandHighlightData(
+                    slug: HandPartSlug.indexFinger,
                     intensity: 0.95,
                   ),
                 ],
-                onPartTap: taps.add,
+                onRegionTap: taps.add,
               ),
             ),
           ),
@@ -1003,7 +764,7 @@ void main() {
 
       final asset = bodySvgAssetFor(BodyGender.male, BodyView.front);
       final hand = asset.parts.firstWhere(
-        (part) => part.slug == BodyPartSlug.hands,
+        (part) => part.slug == BodyRenderRegion.hands,
       );
       final indexFingerCenter = parseSvgPathData(
         hand.left[2],
@@ -1030,12 +791,91 @@ void main() {
       await tester.tapAt(toGlobal(indexFingerCenter));
       await tester.pump();
 
-      expect(taps.single.slug, BodyPartSlug.hands);
-      expect(taps.single.handPart, isNull);
-      expect(taps.single.highlight?.handPart, isNull);
-      expect(taps.single.highlight?.normalizedIntensity, 0);
+      expect(taps.single.handPart, HandPartSlug.hand);
+      expect(taps.single.handHighlight?.slug, HandPartSlug.hand);
+      expect(taps.single.handHighlight?.normalizedIntensity, 0);
     },
   );
+
+  testWidgets('hidden muscle regions are omitted from public hit testing', (
+    tester,
+  ) async {
+    final taps = <AnatomyRegionTap>[];
+    final asset = bodySvgAssetFor(BodyGender.male, BodyView.front);
+    final chest = asset.parts.singleWhere(
+      (part) => part.slug == BodyRenderRegion.chest,
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 362,
+          height: 724,
+          child: AnatomyHeatmap(
+            gender: BodyGender.male,
+            views: const [BodyView.front],
+            hiddenMuscleRegions: const {MuscleRegionKey.chest},
+            showOutline: false,
+            onRegionTap: taps.add,
+          ),
+        ),
+      ),
+    );
+
+    final paintFinder = find.byType(CustomPaint).first;
+    await tester.tapAt(
+      _toGlobal(
+        asset,
+        tester.getSize(paintFinder),
+        tester.getTopLeft(paintFinder),
+        _pathInteriorPoint(chest.left.first),
+      ),
+    );
+    await tester.pump();
+
+    expect(taps, isEmpty);
+  });
+
+  testWidgets('decorative render groups never leak through public taps', (
+    tester,
+  ) async {
+    final taps = <AnatomyRegionTap>[];
+    final asset = bodySvgAssetFor(BodyGender.male, BodyView.front);
+    final hair = asset.parts.singleWhere(
+      (part) => part.slug == BodyRenderRegion.hair,
+    );
+    final hairPath = [...hair.common, ...hair.left, ...hair.right].first;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 362,
+          height: 724,
+          child: AnatomyHeatmap(
+            gender: BodyGender.male,
+            views: const [BodyView.front],
+            showOutline: false,
+            onRegionTap: taps.add,
+          ),
+        ),
+      ),
+    );
+
+    final paintFinder = find.byType(CustomPaint).first;
+    await tester.tapAt(
+      _toGlobal(
+        asset,
+        tester.getSize(paintFinder),
+        tester.getTopLeft(paintFinder),
+        _pathInteriorPoint(hairPath),
+      ),
+    );
+    await tester.pump();
+
+    expect(taps, isEmpty);
+  });
 
   test('license and third-party notices exist', () {
     expect(File('LICENSE').existsSync(), isTrue);
@@ -1047,12 +887,12 @@ void main() {
   });
 }
 
-Future<List<BodyPartTap>> _tapBackHeatmap(
+Future<List<AnatomyRegionTap>> _tapBackHeatmap(
   WidgetTester tester, {
   required List<BodyHighlightData> highlights,
   required List<ui.Offset> svgPoints,
 }) async {
-  final taps = <BodyPartTap>[];
+  final taps = <AnatomyRegionTap>[];
   await tester.pumpWidget(
     Directionality(
       textDirection: TextDirection.ltr,
@@ -1064,7 +904,7 @@ Future<List<BodyPartTap>> _tapBackHeatmap(
           views: const [BodyView.back],
           highlights: highlights,
           showOutline: false,
-          onPartTap: taps.add,
+          onRegionTap: taps.add,
         ),
       ),
     ),
