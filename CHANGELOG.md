@@ -1,8 +1,12 @@
 ## Unreleased
 
+- Removed the public `BodyPartSlug` taxonomy and package-owned
+  `MuscleToBodyPartAdapter`; callers now own exercise and business grouping.
+- Updated public highlights, color overrides, visibility filters, and tap
+  callbacks to use `MuscleRegionKey` and `HandPartSlug` only.
 - Added stable `MuscleRegionKey` wire keys for the 19 independently selectable
   muscle regions backed by the bundled SVG artwork.
-- Made every muscle/body slug select only its exact SVG geometry; `upperBack`
+- Made every muscle region select only its exact SVG geometry; `upperBack`
   no longer implicitly includes trapezius.
 - Removed the deprecated `BodyPartsHeatmap` widget alias; use `AnatomyHeatmap`.
 - Documented view availability, serialization, asset limits, and regeneration.

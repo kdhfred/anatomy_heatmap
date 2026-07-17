@@ -57,12 +57,12 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
     _RedLoadSeed('Purple', Color(0xFF9333EA)),
   ];
 
-  final Map<BodyPartSlug, double> _bodyIntensities = {
-    BodyPartSlug.chest: 1,
-    BodyPartSlug.quadriceps: 0.82,
-    BodyPartSlug.lats: 0.56,
-    BodyPartSlug.deltoids: 0.48,
-    BodyPartSlug.forearm: 0.62,
+  final Map<MuscleRegionKey, double> _muscleIntensities = {
+    MuscleRegionKey.chest: 1,
+    MuscleRegionKey.quadriceps: 0.82,
+    MuscleRegionKey.lats: 0.56,
+    MuscleRegionKey.deltoids: 0.48,
+    MuscleRegionKey.forearm: 0.62,
   };
 
   final Map<HandPartSlug, double> _handIntensities = {
@@ -74,38 +74,9 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
     HandPartSlug.littleFinger: 0.42,
   };
 
-  static const Set<BodyPartSlug> _adjustableParts = {
-    BodyPartSlug.chest,
-    BodyPartSlug.abs,
-    BodyPartSlug.obliques,
-    BodyPartSlug.biceps,
-    BodyPartSlug.triceps,
-    BodyPartSlug.forearm,
-    BodyPartSlug.hands,
-    BodyPartSlug.deltoids,
-    BodyPartSlug.trapezius,
-    BodyPartSlug.upperBack,
-    BodyPartSlug.lats,
-    BodyPartSlug.lowerBack,
-    BodyPartSlug.gluteal,
-    BodyPartSlug.hamstring,
-    BodyPartSlug.quadriceps,
-    BodyPartSlug.calves,
-    BodyPartSlug.adductors,
-    BodyPartSlug.tibialis,
-    BodyPartSlug.neck,
-  };
-
-  List<BodyHighlightData> get _bodyHighlights => [
-    for (final entry in _bodyIntensities.entries)
-      if (entry.value > 0 || entry.key == BodyPartSlug.hands)
-        BodyHighlightData(slug: entry.key, intensity: entry.value),
-    for (final entry in _handIntensities.entries)
-      BodyHighlightData(
-        slug: BodyPartSlug.hands,
-        handPart: entry.key,
-        intensity: entry.value,
-      ),
+  List<BodyHighlightData> get _muscleHighlights => [
+    for (final entry in _muscleIntensities.entries)
+      BodyHighlightData(region: entry.key, intensity: entry.value),
   ];
 
   List<HandHighlightData> get _handHighlights => [
@@ -243,10 +214,11 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                 child: AnatomyHeatmap(
                   gender: _gender,
                   views: const [BodyView.front, BodyView.back],
-                  highlights: _bodyHighlights,
+                  highlights: _muscleHighlights,
+                  handHighlights: _handHighlights,
                   colorScheme: heatmapColorScheme,
                   handDetailLevel: _handDetailLevel,
-                  onPartTap: _handlePartTap,
+                  onRegionTap: _handleRegionTap,
                 ),
               ),
               const SizedBox(height: 10),
@@ -258,9 +230,9 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                 onSelect: _showHandIntensitySheet,
               ),
               const SizedBox(height: 12),
-              _ActiveBodySummary(
-                intensities: _bodyIntensities,
-                onSelect: _showIntensitySheet,
+              _ActiveMuscleSummary(
+                intensities: _muscleIntensities,
+                onSelect: _showMuscleIntensitySheet,
               ),
             ],
           ),
@@ -269,22 +241,21 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
     );
   }
 
-  void _handlePartTap(BodyPartTap tap) {
-    if (tap.slug == BodyPartSlug.hands && tap.handPart != null) {
+  void _handleRegionTap(AnatomyRegionTap tap) {
+    if (tap.handPart != null) {
       _showHandIntensitySheet(tap.handPart!);
       return;
     }
-    if (!_adjustableParts.contains(tap.slug)) {
-      return;
+    if (tap.muscleRegion != null) {
+      _showMuscleIntensitySheet(tap.muscleRegion!);
     }
-    _showIntensitySheet(tap.slug);
   }
 
   void _handleHandPartTap(HandPartTap tap) {
     _showHandIntensitySheet(tap.slug);
   }
 
-  void _showIntensitySheet(BodyPartSlug slug) {
+  void _showMuscleIntensitySheet(MuscleRegionKey region) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -293,19 +264,15 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final colors = Theme.of(context).colorScheme;
-            final value = _bodyIntensities[slug] ?? 0;
+            final value = _muscleIntensities[region] ?? 0;
             final percent = (value * 100).round();
 
             void update(double next) {
               setState(() {
                 if (next <= 0) {
-                  if (slug == BodyPartSlug.hands) {
-                    _bodyIntensities[slug] = 0;
-                  } else {
-                    _bodyIntensities.remove(slug);
-                  }
+                  _muscleIntensities.remove(region);
                 } else {
-                  _bodyIntensities[slug] = next;
+                  _muscleIntensities[region] = next;
                 }
               });
               setSheetState(() {});
@@ -318,7 +285,7 @@ class _HeatmapExampleScreenState extends State<HeatmapExampleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    slug.label,
+                    region.label,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 22,
@@ -580,11 +547,14 @@ class _HandSegmentSummary extends StatelessWidget {
   }
 }
 
-class _ActiveBodySummary extends StatelessWidget {
-  const _ActiveBodySummary({required this.intensities, required this.onSelect});
+class _ActiveMuscleSummary extends StatelessWidget {
+  const _ActiveMuscleSummary({
+    required this.intensities,
+    required this.onSelect,
+  });
 
-  final Map<BodyPartSlug, double> intensities;
-  final ValueChanged<BodyPartSlug> onSelect;
+  final Map<MuscleRegionKey, double> intensities;
+  final ValueChanged<MuscleRegionKey> onSelect;
 
   @override
   Widget build(BuildContext context) {

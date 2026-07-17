@@ -159,10 +159,8 @@ void main() {
     await tester.pump();
 
     final heatmap = tester.widget<AnatomyHeatmap>(find.byType(AnatomyHeatmap));
-    final indexHighlight = heatmap.highlights.singleWhere(
-      (highlight) =>
-          highlight.slug == BodyPartSlug.hands &&
-          highlight.handPart == HandPartSlug.indexFinger,
+    final indexHighlight = heatmap.handHighlights.singleWhere(
+      (highlight) => highlight.slug == HandPartSlug.indexFinger,
     );
 
     expect(indexHighlight.intensity, 0);
